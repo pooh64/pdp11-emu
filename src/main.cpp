@@ -13,8 +13,8 @@ int main(int argc, char **argv)
 	test.read(reinterpret_cast<char*>(emu.coreMem.mem + load_addr), 64);
 	test.close();
 	emu.genReg[Emu::REG_PC] = load_addr;
-
-	while (emu.DbgStep(std::cout))
-		;
+	
+	while (!emu.trapPending)
+		emu.DbgStep(std::cout);
 	return 0;
 }

@@ -22,7 +22,7 @@ struct Emu {
 		REG_SET = REG_R5 + 1,
 		REG_MAX	= REG_PC + 1,
 	};
-	enum PSWMode {
+	enum PSWMode : uint8_t {
 		PSW_KERNEL = 0,
 		PSW_SUPERV = 1,
 		PSW_USERMD = 2,
@@ -66,11 +66,11 @@ struct Emu {
 			spSet[spMode] = reg[REG_SP];
 			reg[REG_SP] = spSet[spMode = newMode];
 		}
-		word_t &operator[](GenRegId id) { return reg[id]; }
+		word_t &operator[](GenRegId id) { return reg[id]; /* unaligned sp/pc? */ }
 	} genReg;
 
 	/* Trap Vector */
-	enum TrapVec {
+	enum TrapVec : uint8_t {
 		TRAP_USER_DEV	= 0000,
 		TRAP_ODD_ADDR	= 0004,
 		TRAP_ILL_INSTR	= 0004,
@@ -82,7 +82,7 @@ struct Emu {
 		TRAP_TRAP	= 0034,
 		TRAP_MM_TRAP	= 0250,
 	} trapVec;
-	bool trapPending = false;
+	bool trapPending = false; /* =? PSW.val.t */
 	void RaiseTrap(TrapVec const trap) { trapVec = trap; trapPending = true; };
 
 	struct CoreMemory {
@@ -119,13 +119,13 @@ struct Emu {
 		}
 	} mmu;
 
-	void FetchOpcode(word_t &opcode) { mmu.Load(genReg[REG_PC], &opcode); }
 	void AdvancePC() { genReg[REG_PC] += sizeof(word_t); }
+	void FetchOpcode(word_t &opcode) { mmu.Load(genReg[REG_PC], &opcode); AdvancePC(); }
 
 	void ExecuteInstr(word_t opcode);
 	void DisasmInstr(word_t opcode, std::ostream &os);
 	void DumpInstr(word_t opcode, std::ostream &os);
-	bool DbgStep(std::ostream &os);
+	void DbgStep(std::ostream &os);
 
 	Emu() : mmu(*this, coreMem) { }
 };
