@@ -8,6 +8,17 @@
 #define DEF_DISASMS(instr) static inline void		\
 	Disasms_##instr(word_t opcode, struct Emu &emu, std::ostream &os)
 
+static inline bool getSign(byte_t val) { return 0x80 & val; }
+static inline bool getSign(word_t val) { return 0x8000 & val; }
+
+static inline word_t SignExtend(byte_t val)
+{
+	return (0x80 & val) ? 0xff00 | val : val;
+}
+
+static inline bool getZ(byte_t val) { return val; }
+static inline bool getZ(word_t val) { return val; }
+
 /* Addressing unit (src/dst) */
 struct AddrOp {
 	union {
@@ -48,29 +59,29 @@ void AddrOp::Fetch(Emu &emu)	// Execute unit to get effAddr, may abort
 		break;
 	case 0b010: // (R)+
 		effAddr.ptr = reg;
-		reg += sizeof(T);
+		reg += (op_reg < Emu::REG_SP) ? sizeof(T) : sizeof(word_t);
 		break;
 	case 0b011: // *(R)+
-		emu.mmu.Load<word_t>(reg, &effAddr.ptr);
+		emu.Load<word_t>(reg, &effAddr.ptr);
 		reg += sizeof(word_t);
 		break;
 	case 0b100: // -(R)
-		reg -= sizeof(T);
+		reg -= (op_reg < Emu::REG_SP) ? sizeof(T) : sizeof(word_t);
 		effAddr.ptr = reg;
 		break;
 	case 0b101: // *-(R)
 		reg -= sizeof(word_t);
-		emu.mmu.Load<word_t>(reg, &effAddr.ptr);
+		emu.Load<word_t>(reg, &effAddr.ptr);
 		break;
 	case 0b110: // imm(R)
-		emu.mmu.Load<word_t>(pc, &imm);
+		emu.Load<word_t>(pc, &imm);
 		pc += sizeof(word_t);
 		effAddr.ptr = reg + imm;
 		break;
 	case 0b111: // *imm(R)
-		emu.mmu.Load<word_t>(pc, &imm);
+		emu.Load<word_t>(pc, &imm);
 		pc += sizeof(word_t);
-		emu.mmu.Load<word_t>(reg + imm, &effAddr.ptr);
+		emu.Load<word_t>(reg + imm, &effAddr.ptr);
 		break;
 	}
 }
@@ -81,7 +92,7 @@ inline void AddrOp::Load(Emu &emu, T *val) // may abort
 	if (isReg)
 		*val = emu.genReg[static_cast<Emu::GenRegId>(effAddr.reg)];
 	else
-		emu.mmu.Load<T>(effAddr.ptr, val);
+		emu.Load<T>(effAddr.ptr, val);
 }
 
 template <typename T>
@@ -90,7 +101,7 @@ inline void AddrOp::Store(Emu &emu, T val) // may abort
 	if (isReg)
 		emu.genReg[static_cast<Emu::GenRegId>(effAddr.reg)] = val;
 	else
-		emu.mmu.Store<T>(effAddr.ptr, val);
+		emu.Store<T>(effAddr.ptr, val);
 }
 
 void AddrOp::Disasm(std::ostream &os)
@@ -126,24 +137,24 @@ struct InstrOp_mrmr {
 		};
 		word_t raw;
 	};
-	AddrOp aop_s, aop_d;
+	AddrOp as, ad;
 	InstrOp_mrmr(word_t raw) {
 		Format fmt; fmt.raw = raw;
-		aop_s.init(fmt.m1, fmt.r1);
-		aop_d.init(fmt.m2, fmt.r2);
+		as.init(fmt.m1, fmt.r1);
+		ad.init(fmt.m2, fmt.r2);
 	}
 	template<typename T>
 	void Fetch(Emu &emu);
 
 	void Disasm(std::ostream &os) {
-		os << " ";  aop_s.Disasm(os);
-		os << ", "; aop_d.Disasm(os);
+		os << " ";  as.Disasm(os);
+		os << ", "; ad.Disasm(os);
 	}
 };
 
 template<typename T>
 void InstrOp_mrmr::Fetch(Emu &emu)
-	{ aop_s.Fetch<T>(emu); aop_d.Fetch<T>(emu); } // may abort
+	{ as.Fetch<T>(emu); ad.Fetch<T>(emu); } // may abort
 
 struct InstrOp_rmr {
 	unsigned br : 3;
@@ -163,17 +174,34 @@ struct InstrOp_r {
 	unsigned op : 13;
 };
 
-DEF_EXECUTE(unknown) { emu.RaiseTrap(Emu::TRAP_ILL_INSTR); }
+DEF_EXECUTE(unknown) { emu.RaiseTrap(Emu::TRAP_ILL); }
 DEF_DISASMS(unknown) { }
 
-DEF_EXECUTE(mov)
-{
-	InstrOp_mrmr op(opcode); op.Fetch<word_t>(emu);
-	word_t val;
-	op.aop_s.Load(emu, &val);
-	op.aop_d.Store(emu, val);
+#define PREF_MRMR_W InstrOp_mrmr op(opcode); op.Fetch<word_t>(emu); word_t val;
+#define PREF_MRMR_B InstrOp_mrmr op(opcode); op.Fetch<byte_t>(emu); byte_t val;
+
+DEF_EXECUTE(mov) {
+	PREF_MRMR_W;
+	op.as.Load(emu, &val);
+	emu.psw.n = getSign(val);
+	emu.psw.z = getZ(val);
+	emu.psw.v = 0;
+	op.ad.Store(emu, val);
 }
 DEF_DISASMS(mov) { InstrOp_mrmr(opcode).Disasm(os); }
+
+DEF_EXECUTE(movb) {
+	PREF_MRMR_B;
+	op.as.Load(emu, &val);
+	emu.psw.n = getSign(val);
+	emu.psw.z = getZ(val);
+	emu.psw.v = 0;
+	if (op.ad.isReg) /* unique movb feature */
+		op.ad.Store(emu, SignExtend(val));
+	else
+		op.ad.Store(emu, val);
+}
+DEF_DISASMS(movb) { InstrOp_mrmr(opcode).Disasm(os); }
 
 void Emu::ExecuteInstr(word_t opcode)
 {
