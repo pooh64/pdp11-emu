@@ -1,60 +1,13 @@
 #include <emu.h>
-#include <instr.h>
+#include <isa.h>
 #include <cstdint>
 #include <cinttypes>
 #include <common.h>
-
-void Emu::ExecuteInstr(word_t opcode)
-{
-#define I_OP(instr) EXECUTE_I(instr, opcode, *this); break;
-#include <instr_switch.h>
-#undef I_OP
-}
-
-void Emu::DisasmInstr(word_t opcode, std::ostream &os)
-{
-#define I_OP(instr) DISASMS_I(instr, opcode, *this, os); break;
-#include <instr_switch.h>
-#undef I_OP
-}
 
 void Emu::DumpInstr(word_t opcode, std::ostream &os)
 {
 	os << putf("%.6" PRIo16 " ", opcode);
 	Emu::DisasmInstr(opcode, os);
-}
-
-static void DumpOperand(Emu &emu, uint8_t op, std::ostream &os)
-{
-	Emu::GenRegId op_reg = static_cast<Emu::GenRegId>(op & 0b111);
-	uint8_t op_mode = ((op >> 3) & 0b111);
-
-	switch (op_mode) {
-		case 0b000: // R
-			os << putf("r%d", op_reg);
-			break;
-		case 0b001: // (R)
-			os << putf("(r%d)", op_reg);
-			break;
-		case 0b010: // (R)+
-			os << putf("(r%d)+", op_reg);
-			break;
-		case 0b011: // *(R)+
-			os << putf("*(r%d)+", op_reg);
-			break;
-		case 0b100: // -(R)
-			os << putf("-(r%d)", op_reg);
-			break;
-		case 0b101: // *-(R)
-			os << putf("*-(r%d)", op_reg);
-			break;
-		case 0b110: // imm(R)
-			os << putf("imm(r%d)", op_reg);
-			break;
-		case 0b111: // *imm(R)
-			os << putf("*imm(r%d)", op_reg);
-			break;
-	}
 }
 
 void DumpTrap(Emu::TrapVec t, std::ostream &os)

@@ -45,13 +45,14 @@ struct Emu {
 		} val;
 	};
 
+	/* General registers */
 	struct GenRegFile {
 		word_t reg[REG_MAX] = { };
 		word_t spSet[PSW_MODE_MAX] = { };
 		word_t savedSet[REG_SET] = { };
 		uint8_t setId = 0;
 		uint8_t spMode = 0;
-		void pswSet(uint8_t newId)
+		void ChangeSet(uint8_t newId)
 		{
 			assert(newId == 0 || newId == 1);
 			if (setId != newId) {
@@ -60,7 +61,7 @@ struct Emu {
 					std::swap(savedSet[i], reg[i]);
 			}
 		}
-		void pswSP(PSWMode newMode)
+		void ChangeSP(PSWMode newMode)
 		{
 			assert(newMode < PSW_MODE_MAX);
 			spSet[spMode] = reg[REG_SP];

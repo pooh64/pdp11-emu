@@ -5,7 +5,7 @@ _start:
 	mov	$02000, r1
 	mov	$0010531, patch_me
 patch_me:
-	halt
+	trap	$0
 	mov	$0004, *(r0)+
 	mov	$0012, -(r1)
 	mov	(r1)+, r2
