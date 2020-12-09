@@ -86,11 +86,14 @@ struct Emu {
 		~CoreMemory() { delete[] mem; }
 	} coreMem;
 
+	struct DevBase {
+		virtual void Load(Emu &emu, word_t ptr, byte_t *buf, uint8_t sz)=0;
+		virtual void Store(Emu &emu, word_t ptr, byte_t *buf, uint8_t sz)=0;
+	};
 	struct DevInfo {
 		word_t ptr;
 		word_t len;
-		void (*load)(word_t ptr, word_t *val, bool isWord);
-		void (*store)(word_t ptr, word_t val, bool isWord);
+		DevBase *dev;
 	};
 	std::vector<DevInfo> devices;
 	void IOspaceRegister(DevInfo &dev) { devices.push_back(dev); }
@@ -133,9 +136,8 @@ inline void Emu::IOspaceLoad(word_t ptr, T *val)
 	if (!IOspaceFind(ptr, dev)) {
 		RaiseTrap(TRAP_MME); return;
 	}
-	word_t tmp;
-	dev.load(ptr, &tmp, std::is_same<T, word_t>::value);
-	*val = static_cast<T>(tmp);
+	ptr -= dev.ptr;
+	dev.dev->Load(*this, ptr, reinterpret_cast<byte_t*>(&val), sizeof(val));
 }
 template<typename T>
 inline void Emu::IOspaceStore(word_t ptr, T val)
@@ -144,7 +146,8 @@ inline void Emu::IOspaceStore(word_t ptr, T val)
 	if (!IOspaceFind(ptr, dev)) {
 		RaiseTrap(TRAP_MME); return;
 	}
-	dev.store(ptr, val, std::is_same<T, word_t>::value);
+	ptr -= dev.ptr;
+	dev.dev->Store(*this, ptr, reinterpret_cast<byte_t*>(&val), sizeof(val));
 }
 template<typename T>
 inline bool Emu::CheckAlign(word_t ptr)

@@ -16,8 +16,8 @@ static inline word_t SignExtend(byte_t val)
 	return (0x80 & val) ? 0xff00 | val : val;
 }
 
-static inline bool getZ(byte_t val) { return val; }
-static inline bool getZ(word_t val) { return val; }
+static inline bool getZ(byte_t val) { return !val; }
+static inline bool getZ(word_t val) { return !val; }
 
 /* Addressing unit (src/dst) */
 struct AddrOp {
