@@ -6,12 +6,10 @@
 _start:
 	mov $0776, sp
 
-	mov $'h, *$VT_XBUF
-	mov $'e, *$VT_XBUF
-	mov $'l, *$VT_XBUF
-	mov $'l, *$VT_XBUF
-	mov $'o, *$VT_XBUF
-	mov $010,*$VT_XBUF
-	mov $' , *$VT_XBUF
+	mov $'c, *$VT_XBUF
+	mov $'r, *$VT_XBUF
+	mov $'t, *$VT_XBUF
+	mov $'0, *$VT_XBUF
+	mov $'\n, *$VT_XBUF
 	halt
 	br _start

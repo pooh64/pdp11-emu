@@ -203,20 +203,19 @@ DEF_EXECUTE(movb) {
 }
 DEF_DISASMS(movb) { InstrOp_mrmr(opcode).Disasm(os); }
 
-DEF_EXEUTE(add) {
+DEF_EXECUTE(add) {
 	PREF_MRMR_W;
-    word_t tmp1, tmp2;
-    op.ad.Load(emu, &tmp1);
-    op.as.Load(emu, &tmp2);
-    val = tmp1 + tmp2;
+	word_t tmp1, tmp2;
+	op.ad.Load(emu, &tmp1);
+	op.as.Load(emu, &tmp2);
+	val = tmp1 + tmp2;
 	emu.psw.n = getSign(val);
 	emu.psw.z = getZ(val);
-    emu.psw.v = !(getSign(tmp1) ^ getSign(tmp2)) && (getSign(tmp1) ^ getSign(val));
-    emu.psw.c = getSign(tmp1) ^ getSign(val);
-    op.ad.Store(emu, val);
+	emu.psw.v = !(getSign(tmp1) ^ getSign(tmp2)) && (getSign(tmp1) ^ getSign(val));
+	emu.psw.c = getSign(tmp1) ^ getSign(val);
+	op.ad.Store(emu, val);
 }
 DEF_DISASMS(add) { InstrOp_mrmr(opcode).Disasm(os); }
-
 
 void Emu::ExecuteInstr(word_t opcode)
 {
