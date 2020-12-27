@@ -13,6 +13,10 @@ void Emu::DumpReg(std::ostream &os)
 void Emu::DbgStep(std::ostream &os)
 {
 	word_t opcode;
+#ifdef CONF_DUMP_REG
+	DumpReg(os);
+	os << "\n";
+#endif
 	FetchOpcode(opcode);
 	if (trapPending)
 		goto trapped;

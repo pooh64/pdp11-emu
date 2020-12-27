@@ -3,14 +3,13 @@
 #include <cassert>
 #include <vector>
 
+#include <configure.h>
+
 using byte_t = uint8_t;
 using word_t = uint16_t;
 using dword_t = uint32_t;
 
 struct Emu {
-	template<typename T>
-	static bool IsPtrAligned(word_t ptr) {return !(ptr % sizeof(T));}
-
 	enum GenRegId : uint8_t {
 		REG_R0	= 00,
 		REG_R1	= 01,
@@ -47,7 +46,7 @@ struct Emu {
 			};
 			word_t raw = 0;
 		};
-	} psw;
+	};
 
 	/* General registers */
 	struct GenRegFile {
@@ -59,20 +58,21 @@ struct Emu {
 		void ChangeSet(uint8_t newId);
 		void ChangeSP(PSWMode newMode);
 		word_t &operator[](GenRegId id) { return reg[id]; /* unaligned sp/pc? */ }
-	} genReg;
+	};
 
 	enum TrapId : uint8_t {
 #define DEF_TRAP(name, vec, str) TRAP_##name,
 #include <trap_def.h>
 #undef DEF_TRAP
 		MAX_TRAP
-	} trapId;
+	};
+
 	enum TrapVec : uint8_t {
 #define DEF_TRAP(name, vec, str) TRAP_VEC_##name = vec,
 #include <trap_def.h>
 #undef DEF_TRAP
-	} trapVec;
-	bool trapPending = false; /* =? PSW.val.t */
+	};
+
 	void RaiseTrap(TrapId const trap) { trapId = trap; trapPending = true; };
 
 	static constexpr word_t IO_PAGE_BASE = (64 - 4) * 1024;
@@ -84,23 +84,33 @@ struct Emu {
 		byte_t *mem;
 		CoreMemory() { mem = new byte_t[sz]; }
 		~CoreMemory() { delete[] mem; }
-	} coreMem;
+	};
 
 	struct DevBase {
 		virtual void Load(Emu &emu, word_t ptr, byte_t *buf, uint8_t sz)=0;
 		virtual void Store(Emu &emu, word_t ptr, byte_t *buf, uint8_t sz)=0;
 	};
+
 	struct DevInfo {
 		word_t ptr;
 		word_t len;
 		DevBase *dev;
 	};
+
+
+	GenRegFile genReg;
+	CoreMemory coreMem;
+	PSW psw;
+	TrapId trapId;
+	TrapVec trapVec;
+	bool trapPending = false; /* =? PSW.val.t */
 	std::vector<DevInfo> devices;
+
 	void IOspaceRegister(DevInfo &dev) { devices.push_back(dev); }
-	bool IOspaceFind(word_t ptr, DevInfo &dev);
-	template<typename T> void IOspaceLoad(word_t ptr, T *val);
-	template<typename T> void IOspaceStore(word_t ptr, T val);
-	template<typename T> bool CheckAlign(word_t ptr);
+
+	template<typename T>
+	static bool IsPtrAligned(word_t ptr) {return !(ptr % sizeof(T));}
+
 	template<typename T> void Load(word_t ptr, T *val);
 	template<typename T> void Store(word_t ptr, T val);
 
@@ -116,6 +126,12 @@ struct Emu {
 	void DbgStep(std::ostream &os);
 
 	Emu() { }
+
+private:
+	bool IOspaceFind(word_t ptr, DevInfo &dev);
+	template<typename T> void IOspaceLoad(word_t ptr, T *val);
+	template<typename T> void IOspaceStore(word_t ptr, T val);
+	template<typename T> bool CheckAlign(word_t ptr);
 };
 
 inline bool Emu::IOspaceFind(word_t ptr, DevInfo &dev)

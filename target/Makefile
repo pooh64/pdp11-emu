@@ -12,9 +12,9 @@ CCPATH = /opt/cross/bin
 CC = $(CCPATH)/pdp11-aout-gcc
 OBJCOPY = $(CCPATH)/pdp11-aout-objcopy
 OBJDUMP = $(CCPATH)/pdp11-aout-objdump
-CFLAGS += --std=gnu11 -MMD -Wall -Wpointer-arith -I$(SRCDIR)
-CFLAGS += -m45 -nostdlib
-LDFLAGS += -nostdlib -Ttext 0x200 -m45 -N
+CFLAGS += --std=gnu11 -MMD -Wall -Wpointer-arith -I$(SRCDIR) -g
+CFLAGS += -m45 -nostdlib -fpic -fpie
+LDFLAGS += -nostdlib -Ttext 0x200 -m45 -N -g -fpic -fpie
 dir_guard = @mkdir -p $(@D)
 
 all: $(BINDIR)/a.bin
@@ -27,7 +27,7 @@ $(COBJDIR)/%.o: $(SRCDIR)/%.s
 	$(dir_guard)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-.PHONY: clean
+.PHONY: clean dump
 clean:
 	rm -rf $(AOBJDIR) $(COBJDIR) $(BINDIR)
 
@@ -38,6 +38,8 @@ $(BINDIR)/a.out: $(AOBJ) $(COBJ)
 $(BINDIR)/a.bin: $(BINDIR)/a.out
 	$(dir_guard)
 	$(OBJCOPY) -O binary $^ $@
-	$(OBJDUMP) -b binary -m pdp11 -D $@
+
+dump: $(BINDIR)/a.bin
+	$(OBJDUMP) -b binary -m pdp11 -D $^
 
 #-include $(DEP)

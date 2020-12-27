@@ -20,12 +20,12 @@ switch (opcode >> 9) { // top 1+3+3 bit
 	//case 0070: I_OP(mul);
 	//case 0071: I_OP(div);
 	//case 0074: I_OP(xor);
-	//case 0004: I_OP(jsr);
+	case 0004: I_OP(jsr);
 	//case 0077: I_OP(sob);
 
 	default:
 switch ((opcode >> 6) & ~(3)) { // top 1+3+3+3, 2 lsb zeroed
-	//case 00004: I_OP(br);
+	//case 00004: I_OP(br);	// expand this
 	//case 01040: I_OP(emt);
 	//case 01044: I_OP(trap);
 
@@ -82,7 +82,7 @@ switch (opcode >> 6) { // top 1+3+3+3 bit
 		default: I_OP(unknown);
 	}}
 switch (opcode >> 3) { // top 1+3+3+3+3 bit
-	//case 000020: I_OP(rts);
+	case 000020: I_OP(rts);
 	//case 000023: I_OP(spl);
 
 	default:
