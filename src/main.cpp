@@ -137,7 +137,7 @@ int main(int argc, char **argv)
 	Emu emu;
 	emu.IOspaceRegister(vt_info);
 	std::ifstream test(argv[1], std::ios::binary);
-	test.read(reinterpret_cast<char*>(emu.coreMem.mem + load_addr), 64);
+	test.read(reinterpret_cast<char*>(emu.coreMem.mem + load_addr), 16 * 1024);
 	test.close();
 	emu.genReg[Emu::REG_PC] = load_addr;
 

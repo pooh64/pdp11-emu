@@ -24,8 +24,16 @@ switch (opcode >> 9) { // top 1+3+3 bit
 	//case 0077: I_OP(sob);
 
 	default:
-switch ((opcode >> 6) & ~(3)) { // top 1+3+3+3, 2 lsb zeroed
-	//case 00004: I_OP(br);	// expand this
+switch ((opcode >> 6) & ~((word_t) 3)) { // top 1+3+3+3, 2 lsb zeroed
+	case 00004: I_OP(br);
+	//case 00014: I_OP(beq);
+	//case 00010: I_OP(bne);
+	//case 01004: I_OP(bmi);
+	//case 01000: I_OP(bpl);
+	//case 01034: I_OP(bcs);
+	//case 01030: I_OP(bcc);
+	//case 01024: I_OP(bvs);
+	//case 01020: I_OP(bvc);
 	//case 01040: I_OP(emt);
 	//case 01044: I_OP(trap);
 
@@ -68,19 +76,8 @@ switch (opcode >> 6) { // top 1+3+3+3 bit
 
 	default:
 	if (((opcode >> 3) & ~(3)) == 000024) { // top 1+3+3+3+3, 2 lsb zeroed
-	switch (opcode & 0b11111) {
-		//case 0b00001: I_OP(clc);
-		//case 0b00010: I_OP(clv);
-		//case 0b00100: I_OP(clz);
-		//case 0b01000: I_OP(cln);
-
-		//case 0b10001: I_OP(sec);
-		//case 0b10010: I_OP(sev);
-		//case 0b10100: I_OP(sez);
-		//case 0b11000: I_OP(sen);
-
-		default: I_OP(unknown);
-	}}
+		I_OP(ccode_op);
+	}
 switch (opcode >> 3) { // top 1+3+3+3+3 bit
 	case 000020: I_OP(rts);
 	//case 000023: I_OP(spl);

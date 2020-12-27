@@ -233,12 +233,60 @@ struct InstrOp_r {
 #define PREF_R InstrOp_r op(opcode); op.Fetch(emu);
 };
 
+
+static inline
 void ExecuteBranch(struct Emu &emu, word_t raw)
 {
-	word_t offs = 2 * (raw & 0xff);
-	emu.genReg[Emu::REG_PC] += offs;
+	s_word_t offs = SignExtend(raw & 0xff);
+	emu.genReg[Emu::REG_PC] += 2 * offs;
 }
 
+#define DEF_BRANCH_LIST		\
+	DEF_BRANCH(br, true)
+
+#define DEF_BRANCH(name, pred)	\
+DEF_EXECUTE(name) { if (pred) ExecuteBranch(emu, opcode); }
+DEF_BRANCH_LIST
+#undef DEF_BRANCH
+
+#define DEF_BRANCH(name, pred)	DEF_DISASMS(name) { }
+DEF_BRANCH_LIST
+#undef DEF_BRANCH
+
+union __attribute__((may_alias)) CCODEop {
+	struct {
+		unsigned c : 1;
+		unsigned v : 1;
+		unsigned z : 1;
+		unsigned n : 1;
+		unsigned val : 1;
+	};
+	word_t raw;
+};
+static const char CCODEopStrtab[] = {'c', 'v', 'z', 'n'};
+
+DEF_EXECUTE(ccode_op) {
+	CCODEop op; op.raw = opcode;
+
+	if (op.val)
+		emu.psw.raw |=  (op.raw & 0b1111);
+	else
+		emu.psw.raw &= ~(op.raw & 0b1111);
+}
+
+DEF_DISASMS(ccode_op) {
+	CCODEop op; op.raw = opcode;
+
+	if (op.val)
+		os << " se";
+	else
+		os << " cl";
+
+	for (int i = 0; i < 4; ++i, op.raw >>= 1) {
+		if (op.raw & 1)
+			os << " " << CCODEopStrtab[i];
+	}
+}
 
 DEF_EXECUTE(unknown) { emu.RaiseTrap(Emu::TRAP_ILL); }
 DEF_DISASMS(unknown) { }
@@ -311,16 +359,42 @@ DEF_EXECUTE(halt) { emu.RaiseTrap(Emu::TRAP_ILL); }
 DEF_DISASMS(halt) { }
 
 
+
+DEF_EXECUTE(fpu_unknown) { emu.RaiseTrap(Emu::TRAP_ILL); }
+DEF_DISASMS(fpu_unknown) { }
+
+DEF_EXECUTE(setd) { emu.fpu.fpusw.fd = 1; }
+DEF_DISASMS(setd) { }
+
+DEF_EXECUTE(seti) { emu.fpu.fpusw.fl = 1; }
+DEF_DISASMS(seti) { }
+
+word_t constexpr FPU_ISA_MASK = 0170000;
+
 void Emu::ExecuteInstr(word_t opcode)
 {
-#define I_OP(instr) EXECUTE_I(instr, opcode, *this); break;
+	if ((opcode & FPU_ISA_MASK) == FPU_ISA_MASK) {
+		word_t masked = opcode & ~FPU_ISA_MASK;
+#define I_OP(instr) EXECUTE_I(instr, opcode, *this); return;
+#include <fpu_isa_switch.h>
+#undef I_OP
+	} else {
+#define I_OP(instr) EXECUTE_I(instr, opcode, *this); return;
 #include <isa_switch.h>
 #undef I_OP
+	}
 }
 
 void Emu::DisasmInstr(word_t opcode, std::ostream &os)
 {
-#define I_OP(instr) DISASMS_I(instr, opcode, *this, os); break;
+	if ((opcode & FPU_ISA_MASK) == FPU_ISA_MASK) {
+		word_t masked = opcode & ~FPU_ISA_MASK;
+#define I_OP(instr) DISASMS_I(instr, opcode, *this, os); return;
+#include <fpu_isa_switch.h>
+#undef I_OP
+	} else {
+#define I_OP(instr) DISASMS_I(instr, opcode, *this, os); return;
 #include <isa_switch.h>
 #undef I_OP
+	}
 }

@@ -5,9 +5,10 @@
 
 #include <configure.h>
 
-using byte_t = uint8_t;
-using word_t = uint16_t;
-using dword_t = uint32_t;
+using byte_t   = uint8_t;
+using word_t   = uint16_t;
+using s_word_t = int16_t;
+using dword_t  = uint32_t;
 
 struct Emu {
 	enum GenRegId : uint8_t {
@@ -31,7 +32,7 @@ struct Emu {
 
 	/* Processor status word */
 	struct PSW {
-		union {
+		union __attribute__((may_alias)) {
 			struct __attribute__((packed)) {
 				unsigned c : 1;
 				unsigned v : 1;
@@ -46,6 +47,30 @@ struct Emu {
 			};
 			word_t raw = 0;
 		};
+	};
+
+	struct FPU {
+		union __attribute__((may_alias)) FPUSW {
+			struct __attribute__((packed)) {
+				unsigned fc  : 1;
+				unsigned fv  : 1;
+				unsigned fz  : 1;
+				unsigned fn  : 1;
+				unsigned fmm : 1;
+				unsigned ft  : 1;
+				unsigned fl  : 1;
+				unsigned fd  : 1;
+				unsigned ic  : 1;
+				unsigned iv  : 1;
+				unsigned iu  : 1;
+				unsigned iuv : 1;
+				unsigned _unused : 2;
+				unsigned fid : 1;
+				unsigned fer : 1;
+			};
+			word_t raw = 0;
+		};
+		FPUSW fpusw;
 	};
 
 	/* General registers */
@@ -98,6 +123,7 @@ struct Emu {
 	};
 
 
+	FPU fpu;
 	GenRegFile genReg;
 	CoreMemory coreMem;
 	PSW psw;
