@@ -1,17 +1,17 @@
 switch (opcode >> 12) {	// top 1+3 bit
 	case 001: I_OP(mov);
-	//case 006: I_OP(add);
+	case 006: I_OP(add);
 	//case 016: I_OP(sub);
 	//case 002: I_OP(cmp);
-	//case 005: I_OP(bis);
-	//case 003: I_OP(bit);
-	//case 004: I_OP(bic);
+	case 005: I_OP(bis);
+	case 003: I_OP(bit);
+	case 004: I_OP(bic);
 
 	case 011: I_OP(movb);
 	//case 012: I_OP(cmpb);
-	//case 015: I_OP(bisb);
-	//case 013: I_OP(bitb);
-	//case 014: I_OP(bicb);
+	case 015: I_OP(bisb);
+	case 013: I_OP(bitb);
+	case 014: I_OP(bicb);
 
 	default:
 switch (opcode >> 9) { // top 1+3+3 bit
@@ -26,14 +26,15 @@ switch (opcode >> 9) { // top 1+3+3 bit
 	default:
 switch ((opcode >> 6) & ~((word_t) 3)) { // top 1+3+3+3, 2 lsb zeroed
 	case 00004: I_OP(br);
-	//case 00014: I_OP(beq);
-	//case 00010: I_OP(bne);
-	//case 01004: I_OP(bmi);
-	//case 01000: I_OP(bpl);
-	//case 01034: I_OP(bcs);
-	//case 01030: I_OP(bcc);
-	//case 01024: I_OP(bvs);
-	//case 01020: I_OP(bvc);
+	case 00014: I_OP(beq);
+	case 00010: I_OP(bne);
+	case 01004: I_OP(bmi);
+	case 01000: I_OP(bpl);
+	case 01034: I_OP(bcs);
+	case 01030: I_OP(bcc);
+	case 01024: I_OP(bvs);
+	case 01020: I_OP(bvc);
+	/* signed, unsigned br */
 	//case 01040: I_OP(emt);
 	//case 01044: I_OP(trap);
 
@@ -42,11 +43,11 @@ switch (opcode >> 6) { // top 1+3+3+3 bit
 	//case 00050: I_OP(clr);
 	//case 00051: I_OP(com);
 	//case 00052: I_OP(inc);
-	//case 00053: I_OP(dec);
+	case 00053: I_OP(dec);
 	//case 00054: I_OP(neg);
 	//case 00055: I_OP(adc);
 	//case 00056: I_OP(sbc);
-	//case 00057: I_OP(tst);
+	case 00057: I_OP(tst);
 	//case 00060: I_OP(ror);
 	//case 00061: I_OP(rol);
 	//case 00062: I_OP(asr);
@@ -55,11 +56,11 @@ switch (opcode >> 6) { // top 1+3+3+3 bit
 	//case 01050: I_OP(clrb);
 	//case 01051: I_OP(comb);
 	//case 01052: I_OP(incb);
-	//case 01053: I_OP(decb);
+	case 01053: I_OP(decb);
 	//case 01054: I_OP(negb);
 	//case 01055: I_OP(adcb);
 	//case 01056: I_OP(sbcb);
-	//case 01057: I_OP(tstb);
+	case 01057: I_OP(tstb);
 	//case 01060: I_OP(rorb);
 	//case 01061: I_OP(rolb);
 	//case 01062: I_OP(asrb);

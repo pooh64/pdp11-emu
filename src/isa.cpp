@@ -102,9 +102,10 @@ inline void AddrOp::Load(Emu &emu, T *val) // may abort
 template <typename T>
 inline void AddrOp::Store(Emu &emu, T val) // may abort
 {
-	if (isReg)
-		emu.genReg[static_cast<Emu::GenRegId>(effAddr.reg)] = val;
-	else
+	if (isReg) {
+		auto ptr = &emu.genReg[static_cast<Emu::GenRegId>(effAddr.reg)];
+		*reinterpret_cast<T*>(ptr) = val;
+	} else
 		emu.Store<T>(effAddr.ptr, val);
 }
 
@@ -234,6 +235,10 @@ struct InstrOp_r {
 };
 
 
+DEF_EXECUTE(unknown) { emu.RaiseTrap(Emu::TRAP_ILL); }
+DEF_DISASMS(unknown) { }
+
+
 static inline
 void ExecuteBranch(struct Emu &emu, word_t raw)
 {
@@ -241,15 +246,24 @@ void ExecuteBranch(struct Emu &emu, word_t raw)
 	emu.genReg[Emu::REG_PC] += 2 * offs;
 }
 
-#define DEF_BRANCH_LIST		\
-	DEF_BRANCH(br, true)
+#define DEF_BRANCH_LIST				\
+	DEF_BRANCH(br,   true)			\
+	DEF_BRANCH(beq,  emu.psw.z)		\
+	DEF_BRANCH(bne, !emu.psw.z)		\
+	DEF_BRANCH(bmi,  emu.psw.n)		\
+	DEF_BRANCH(bpl, !emu.psw.n)		\
+	DEF_BRANCH(bcs,  emu.psw.c)		\
+	DEF_BRANCH(bcc, !emu.psw.c)		\
+	DEF_BRANCH(bvs,  emu.psw.v)		\
+	DEF_BRANCH(bvc, !emu.psw.v)
 
 #define DEF_BRANCH(name, pred)	\
 DEF_EXECUTE(name) { if (pred) ExecuteBranch(emu, opcode); }
 DEF_BRANCH_LIST
 #undef DEF_BRANCH
 
-#define DEF_BRANCH(name, pred)	DEF_DISASMS(name) { }
+#define DEF_BRANCH(name, pred)	\
+DEF_DISASMS(name) { os << " pc+" << (opcode & 0xff); }
 DEF_BRANCH_LIST
 #undef DEF_BRANCH
 
@@ -288,8 +302,85 @@ DEF_DISASMS(ccode_op) {
 	}
 }
 
-DEF_EXECUTE(unknown) { emu.RaiseTrap(Emu::TRAP_ILL); }
-DEF_DISASMS(unknown) { }
+
+#define DEF_DLOG_LIST				\
+	DEF_DLOG(bis,  (src) | (dst), true)	\
+	DEF_DLOG(bic, ~(src) & (dst), true)	\
+	DEF_DLOG(bit,  (src) & (dst), false)	\
+
+#define DEF_DLOG(name, expr, wback)		\
+DEF_EXECUTE(name) {				\
+	PREF_MRMR_W; word_t src, dst;		\
+	op.s.Load(emu, &src);			\
+	op.d.Load(emu, &dst);			\
+	val = (expr);				\
+	emu.psw.n = getSign(val);		\
+	emu.psw.z = getZ(val);			\
+	emu.psw.v = 0;				\
+	if (wback)				\
+		op.d.Store(emu, val);		\
+} DEF_DISASMS(name) { }
+DEF_DLOG_LIST
+#undef DEF_DLOG
+
+#define DEF_DLOG(name, expr, wback)		\
+DEF_EXECUTE(name##b) {				\
+	PREF_MRMR_B; word_t src, dst;		\
+	op.s.Load(emu, &src);			\
+	op.d.Load(emu, &dst);			\
+	val = (expr);				\
+	emu.psw.n = getSign(val);		\
+	emu.psw.z = getZ(val);			\
+	emu.psw.v = 0;				\
+	if (wback)				\
+		op.d.Store(emu, val);		\
+} DEF_DISASMS(name##b) { }
+DEF_DLOG_LIST
+#undef DEF_DLOG
+
+
+
+
+DEF_EXECUTE(dec) {
+	PREF_MR_W;
+	op.a.Load(emu, &val);
+	val = val - 1;
+	emu.psw.n = getSign(val);
+	emu.psw.z = getZ(val);
+	emu.psw.v = (val == 077777);
+	op.a.Store(emu, val);
+}
+DEF_DISASMS(dec) { InstrOp_mr(opcode).Disasm(os); }
+
+DEF_EXECUTE(decb) {
+	PREF_MR_B;
+	op.a.Load(emu, &val);
+	val = val - 1;
+	emu.psw.n = getSign(val);
+	emu.psw.z = getZ(val);
+	emu.psw.v = (val == 0177);
+	op.a.Store(emu, val);
+}
+DEF_DISASMS(decb) { InstrOp_mr(opcode).Disasm(os); }
+
+
+DEF_EXECUTE(tst) {
+	PREF_MR_W;
+	op.a.Load(emu, &val);
+	emu.psw.n = getSign(val);
+	emu.psw.z = getZ(val);
+	emu.psw.v = emu.psw.c = 0;
+}
+DEF_DISASMS(tst) { InstrOp_mr(opcode).Disasm(os); }
+
+DEF_EXECUTE(tstb) {
+	PREF_MR_B;
+	op.a.Load(emu, &val);
+	emu.psw.n = getSign(val);
+	emu.psw.z = getZ(val);
+	emu.psw.v = emu.psw.c = 0;
+}
+DEF_DISASMS(tstb) { InstrOp_mr(opcode).Disasm(os); }
 
 DEF_EXECUTE(mov) {
 	PREF_MRMR_W;

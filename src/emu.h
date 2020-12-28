@@ -179,7 +179,7 @@ inline void Emu::IOspaceLoad(word_t ptr, T *val)
 		RaiseTrap(TRAP_MME); return;
 	}
 	ptr -= dev.ptr;
-	dev.dev->Load(*this, ptr, reinterpret_cast<byte_t*>(&val), sizeof(val));
+	dev.dev->Load(*this, ptr, reinterpret_cast<byte_t*>(val), sizeof(*val));
 }
 template<typename T>
 inline void Emu::IOspaceStore(word_t ptr, T val)

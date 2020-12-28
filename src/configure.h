@@ -1,3 +1,3 @@
 #pragma once
 
-#define CONF_DUMP_REG
+//#define CONF_DUMP_REG

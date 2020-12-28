@@ -8,6 +8,8 @@ DEP += $(OBJ:.o=.d)
 CXX = g++
 CXXFLAGS = -g --std=gnu++11 -MMD -Wall -Wpointer-arith -I./src
 LDFLAGS =
+CXXFLAGS += -fsanitize=address
+LDFLAGS += -fsanitize=address -lasan
 dir_guard=@mkdir -p $(@D)
 
 all: $(BINDIR)/pdp11-emu

@@ -11,8 +11,6 @@
 #include <poll.h>
 
 struct DummyVT : public Emu::DevBase {
-	static constexpr word_t BASE_ADDR = 0177560;
-	static constexpr word_t ADDR_LEN = 0177560;
 	enum RegId : word_t {
 		RCSR = 0,
 		RBUF = 1,
@@ -20,6 +18,9 @@ struct DummyVT : public Emu::DevBase {
 		XBUF = 3,
 		MAX_REG,
 	};
+
+	static constexpr word_t BASE_ADDR = 0177560;
+	static constexpr word_t ADDR_LEN = MAX_REG * sizeof(word_t);
 
 	void getInfo(Emu::DevInfo &info)
 	{
@@ -70,7 +71,8 @@ struct DummyVT : public Emu::DevBase {
 	bool charReady()
 	{
 		struct pollfd pf;
-		pf.fd = fd;
+		//pf.fd = fd;
+		pf.fd = STDIN_FILENO;
 		pf.events = POLLIN;
 		int rc = poll(&pf, 1, 0);
 		assert(rc >= 0);
@@ -78,7 +80,8 @@ struct DummyVT : public Emu::DevBase {
 	}
 	void getChar(char *c)
 	{
-		ssize_t rc = read(fd, c, sizeof(*c));
+		//ssize_t rc = read(fd, c, sizeof(*c));
+		ssize_t rc = read(STDIN_FILENO, c, sizeof(*c));
 		assert(sizeof(*c) == rc);
 	}
 	void Load(Emu &emu, word_t ptr, byte_t *buf, uint8_t sz)
@@ -90,7 +93,7 @@ struct DummyVT : public Emu::DevBase {
 				reg = 0x80;
 				break;
 			case RCSR:
-				reg = 0x80 * charReady();
+				reg = charReady() ? 0x80 : 0;
 				break;
 			case RBUF:
 				if (!charReady())

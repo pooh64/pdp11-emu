@@ -15,6 +15,7 @@ __putf_str putf(char const *fmt...)
 {
 	va_list args;
 	va_start(args, fmt);
+	free(__putf_buf); /* I want to reuse it, but i can't :( */
 	if (vasprintf(&__putf_buf, fmt, args) < 0) {
 		std::bad_alloc exc;
 		throw exc;
