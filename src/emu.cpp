@@ -7,7 +7,7 @@
 void Emu::DumpReg(std::ostream &os)
 {
 	for (uint8_t i = Emu::REG_R0; i < Emu::MAX_REG; ++i)
-		os << putf("r%u=%.6" PRIo16 " ", i, genReg[static_cast<Emu::GenRegId>(i)]);
+		os << putf("r%u=%.6" PRIo16 " ", i, genReg[i]);
 }
 
 void Emu::DbgStep(std::ostream &os)

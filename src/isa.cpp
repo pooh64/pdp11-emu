@@ -8,16 +8,45 @@
 #define DEF_DISASMS(instr) static inline void		\
 	Disasms_##instr(word_t opcode, struct Emu &emu, std::ostream &os)
 
-static inline bool getSign(byte_t val) { return 0x80 & val; }
-static inline bool getSign(word_t val) { return 0x8000 & val; }
+static inline bool getSign(byte_t val)  { return 0x80 & val; }
+static inline bool getSign(word_t val)  { return 0x8000 & val; }
+static inline bool getSign(dword_t val) { return 0x80000000 & val; }
 
 static inline word_t SignExtend(byte_t val)
 {
 	return (0x80 & val) ? 0xff00 | val : val;
 }
 
-static inline bool getZ(byte_t val) { return !val; }
-static inline bool getZ(word_t val) { return !val; }
+static inline dword_t SignExtend(word_t val)
+{
+	return (0x8000 & val) ? 0xffff0000 | val : val;
+}
+
+static inline bool getZ(byte_t val)  { return !val; }
+static inline bool getZ(word_t val)  { return !val; }
+static inline bool getZ(dword_t val) { return !val; }
+
+static inline bool DetectSubOvf(byte_t src, byte_t dst, byte_t val)
+{
+	val = (src ^ dst) & (~dst ^ val);
+	return getSign(val);
+}
+static inline bool DetectSubOvf(word_t src, word_t dst, word_t val)
+{
+	val = (src ^ dst) & (~dst ^ val);
+	return getSign(val);
+}
+
+static inline bool DetectAddOvf(byte_t src, byte_t dst, byte_t val)
+{
+	val = (~src ^ dst) & (src ^ val);
+	return getSign(val);
+}
+static inline bool DetectAddOvf(word_t src, word_t dst, word_t val)
+{
+	val = (~src ^ dst) & (src ^ val);
+	return getSign(val);
+}
 
 /* Addressing unit (r+m) */
 struct AddrOp {
@@ -45,7 +74,7 @@ template <typename T>
 void AddrOp::Fetch(Emu &emu)	// Execute unit to get effAddr, may abort
 {
 	word_t &pc = emu.genReg[Emu::REG_PC];
-	word_t &reg = emu.genReg[static_cast<Emu::GenRegId>(op_reg)];
+	word_t &reg = emu.genReg[op_reg];
 	word_t imm;
 
 	isReg = false;
@@ -94,7 +123,7 @@ template <typename T>
 inline void AddrOp::Load(Emu &emu, T *val) // may abort
 {
 	if (isReg)
-		*val = emu.genReg[static_cast<Emu::GenRegId>(effAddr.reg)];
+		*val = emu.genReg[effAddr.reg];
 	else
 		emu.Load<T>(effAddr.ptr, val);
 }
@@ -103,7 +132,7 @@ template <typename T>
 inline void AddrOp::Store(Emu &emu, T val) // may abort
 {
 	if (isReg) {
-		auto ptr = &emu.genReg[static_cast<Emu::GenRegId>(effAddr.reg)];
+		auto ptr = &emu.genReg[effAddr.reg];
 		*reinterpret_cast<T*>(ptr) = val;
 	} else
 		emu.Store<T>(effAddr.ptr, val);
@@ -155,8 +184,10 @@ struct InstrOp_mrmr {
 		os << " ";  s.Disasm(os);
 		os << ", "; d.Disasm(os);
 	}
-#define PREF_MRMR_W InstrOp_mrmr op(opcode); op.Fetch<word_t>(emu); word_t val;
-#define PREF_MRMR_B InstrOp_mrmr op(opcode); op.Fetch<byte_t>(emu); byte_t val;
+#define PREF_MRMR_W InstrOp_mrmr op(opcode); op.Fetch<word_t>(emu); \
+	word_t val, src, dst; (void) val; (void) src; (void) dst;
+#define PREF_MRMR_B InstrOp_mrmr op(opcode); op.Fetch<byte_t>(emu); \
+	byte_t val, src, dst; (void) val; (void) src; (void) dst;
 };
 
 struct InstrOp_rmr {
@@ -243,8 +274,8 @@ DEF_DISASMS(unknown) { }
 static inline
 void ExecuteBranch(struct Emu &emu, word_t raw)
 {
-	s_word_t offs = SignExtend(raw & 0xff);
-	emu.genReg[Emu::REG_PC] += 2 * offs;
+	word_t offs = (word_t) 2 * SignExtend((byte_t) (raw & 0xff));
+	emu.genReg[Emu::REG_PC] += offs;
 }
 
 #define DEF_BRANCH_LIST						\
@@ -320,7 +351,7 @@ DEF_DISASMS(ccode_op) {
 
 #define DEF_DLOG(name, expr, wback)		\
 DEF_EXECUTE(name) {				\
-	PREF_MRMR_W; word_t src, dst;		\
+	PREF_MRMR_W;				\
 	op.s.Load(emu, &src);			\
 	op.d.Load(emu, &dst);			\
 	val = (expr);				\
@@ -335,7 +366,7 @@ DEF_DLOG_LIST
 
 #define DEF_DLOG(name, expr, wback)		\
 DEF_EXECUTE(name##b) {				\
-	PREF_MRMR_B; word_t src, dst;		\
+	PREF_MRMR_B;				\
 	op.s.Load(emu, &src);			\
 	op.d.Load(emu, &dst);			\
 	val = (expr);				\
@@ -361,7 +392,6 @@ DEF_EXECUTE(dec) {
 	op.a.Store(emu, val);
 }
 DEF_DISASMS(dec) { InstrOp_mr(opcode).Disasm(os); }
-
 DEF_EXECUTE(decb) {
 	PREF_MR_B;
 	op.a.Load(emu, &val);
@@ -373,6 +403,26 @@ DEF_EXECUTE(decb) {
 }
 DEF_DISASMS(decb) { InstrOp_mr(opcode).Disasm(os); }
 
+DEF_EXECUTE(inc) {
+	PREF_MR_W;
+	op.a.Load(emu, &val);
+	val = val + 1;
+	emu.psw.n = getSign(val);
+	emu.psw.z = getZ(val);
+	emu.psw.v = (val == 0100000);
+	op.a.Store(emu, val);
+}
+DEF_DISASMS(inc) { InstrOp_mr(opcode).Disasm(os); }
+DEF_EXECUTE(incb) {
+	PREF_MR_B;
+	op.a.Load(emu, &val);
+	val = val + 1;
+	emu.psw.n = getSign(val);
+	emu.psw.z = getZ(val);
+	emu.psw.v = (val == 0200);
+	op.a.Store(emu, val);
+}
+DEF_DISASMS(incb) { InstrOp_mr(opcode).Disasm(os); }
 
 DEF_EXECUTE(tst) {
 	PREF_MR_W;
@@ -382,7 +432,6 @@ DEF_EXECUTE(tst) {
 	emu.psw.v = emu.psw.c = 0;
 }
 DEF_DISASMS(tst) { InstrOp_mr(opcode).Disasm(os); }
-
 DEF_EXECUTE(tstb) {
 	PREF_MR_B;
 	op.a.Load(emu, &val);
@@ -401,7 +450,6 @@ DEF_EXECUTE(mov) {
 	op.d.Store(emu, val);
 }
 DEF_DISASMS(mov) { InstrOp_mrmr(opcode).Disasm(os); }
-
 DEF_EXECUTE(movb) {
 	PREF_MRMR_B;
 	op.s.Load(emu, &val);
@@ -415,19 +463,59 @@ DEF_EXECUTE(movb) {
 }
 DEF_DISASMS(movb) { InstrOp_mrmr(opcode).Disasm(os); }
 
-DEF_EXECUTE(add) {
+DEF_EXECUTE(cmp) {
 	PREF_MRMR_W;
-	word_t tmp1, tmp2;
-	op.s.Load(emu, &tmp2);
-	op.d.Load(emu, &tmp1);
-	val = tmp1 + tmp2;
+	op.s.Load(emu, &src);
+	op.d.Load(emu, &dst);
+
+	val = src - dst;
 	emu.psw.n = getSign(val);
 	emu.psw.z = getZ(val);
-	emu.psw.v = !(getSign(tmp1) ^ getSign(tmp2)) && (getSign(tmp1) ^ getSign(val));
-	emu.psw.c = getSign(tmp1) ^ getSign(val);
+	emu.psw.v = DetectSubOvf(src, dst, val);
+	emu.psw.c = (src < dst);
+}
+DEF_DISASMS(cmp) { InstrOp_mrmr(opcode).Disasm(os); }
+DEF_EXECUTE(cmpb) {
+	PREF_MRMR_B;
+	op.s.Load(emu, &src);
+	op.d.Load(emu, &dst);
+
+	val = src - dst;
+	emu.psw.n = getSign(val);
+	emu.psw.z = getZ(val);
+	emu.psw.v = DetectSubOvf(src, dst, val);
+	emu.psw.c = (src < dst);
+}
+DEF_DISASMS(cmpb) { InstrOp_mrmr(opcode).Disasm(os); }
+
+DEF_EXECUTE(add) {
+	PREF_MRMR_W;
+	op.s.Load(emu, &src);
+	op.d.Load(emu, &dst);
+	val = src + dst;
+	emu.psw.n = getSign(val);
+	emu.psw.z = getZ(val);
+	emu.psw.v = DetectAddOvf(src, dst, val);
+	emu.psw.c = (val < src);
 	op.d.Store(emu, val);
 }
 DEF_DISASMS(add) { InstrOp_mrmr(opcode).Disasm(os); }
+
+DEF_EXECUTE(mul) {
+	PREF_RMR; word_t aopv, regv; s_dword_t val;
+	op.a.Load(emu, &aopv);
+	op.r.Load(emu, &regv);
+	val = SignExtend(aopv) * SignExtend(regv);
+
+	emu.genReg[op.r.effAddr.reg    ] = (val >> 16) & 0xffff;
+	emu.genReg[op.r.effAddr.reg | 1] =         val & 0xffff;
+
+	emu.psw.n = getSign((dword_t) val);
+	emu.psw.z = getZ((dword_t) val);
+	emu.psw.v = 0;
+	emu.psw.c = ((val > 077777) || (val < -0100000)); // PDP-11/45 handbook LIES here
+}
+DEF_DISASMS(mul) { InstrOp_mrmr(opcode).Disasm(os); }
 
 DEF_EXECUTE(jsr) {
 	PREF_RMR;
@@ -456,6 +544,7 @@ DEF_EXECUTE(rts) {
 }
 DEF_DISASMS(rts) { InstrOp_r(opcode).Disasm(os); }
 
+
 DEF_EXECUTE(halt) { emu.RaiseTrap(Emu::TRAP_ILL); }
 DEF_DISASMS(halt) { }
 
@@ -465,13 +554,9 @@ DEF_EXECUTE(name) { emu.RaiseTrap(Emu::TRAP_ILL); }	\
 DEF_DISASMS(name) { os << ": unimplemented"; }
 
 DEF_UNIMPL(sub)
-DEF_UNIMPL(cmp)
-
-DEF_UNIMPL(cmpb)
 
 DEF_UNIMPL(ash)
 DEF_UNIMPL(ashc)
-DEF_UNIMPL(mul)
 DEF_UNIMPL(div)
 DEF_UNIMPL(xor)
 DEF_UNIMPL(sob)
@@ -481,7 +566,6 @@ DEF_UNIMPL(trap)
 
 DEF_UNIMPL(clr)
 DEF_UNIMPL(com)
-DEF_UNIMPL(inc)
 DEF_UNIMPL(neg)
 DEF_UNIMPL(adc)
 DEF_UNIMPL(sbc)
@@ -492,7 +576,6 @@ DEF_UNIMPL(asl)
 
 DEF_UNIMPL(clrb)
 DEF_UNIMPL(comb)
-DEF_UNIMPL(incb)
 DEF_UNIMPL(negb)
 DEF_UNIMPL(adcb)
 DEF_UNIMPL(sbcb)

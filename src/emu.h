@@ -5,10 +5,11 @@
 
 #include <configure.h>
 
-using byte_t   = uint8_t;
-using word_t   = uint16_t;
-using s_word_t = int16_t;
-using dword_t  = uint32_t;
+using    byte_t = uint8_t;
+using    word_t = uint16_t;
+using  s_word_t =  int16_t;
+using   dword_t = uint32_t;
+using s_dword_t =  int32_t;
 
 struct Emu {
 	enum GenRegId : uint8_t {
@@ -82,7 +83,7 @@ struct Emu {
 		uint8_t spMode = 0;
 		void ChangeSet(uint8_t newId);
 		void ChangeSP(PSWMode newMode);
-		word_t &operator[](GenRegId id) { return reg[id]; /* unaligned sp/pc? */ }
+		word_t &operator[](uint8_t id) { return reg[id]; /* unaligned sp/pc? */ }
 	};
 
 	enum TrapId : uint8_t {
