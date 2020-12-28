@@ -20,15 +20,19 @@ void Emu::DbgStep(std::ostream &os)
 	FetchOpcode(opcode);
 	if (trapPending)
 		goto trapped;
+#ifdef CONF_DUMP_INSTR
 	DumpInstr(opcode, os);
 	os << "\n";
+#endif
 	ExecuteInstr(opcode);
 	if (trapPending) goto trapped;
 	return;
 trapped:
-	os << "\ttrap raised: ";
+	os << "\tTrap raised: ";
 	DumpTrap(trapId, os);
 	os << "\n\t";
+	DumpInstr(opcode, os);
+	os << "\n";
 	DumpReg(os);
 	os << "\n";
 	return;

@@ -7,6 +7,7 @@ DEP += $(OBJ:.o=.d)
 
 CXX = g++
 CXXFLAGS = -g --std=gnu++11 -MMD -Wall -Wpointer-arith -I./src
+CXXFLAGS += -O3
 LDFLAGS =
 CXXFLAGS += -fsanitize=address
 LDFLAGS += -fsanitize=address -lasan

@@ -238,6 +238,7 @@ struct InstrOp_r {
 DEF_EXECUTE(unknown) { emu.RaiseTrap(Emu::TRAP_ILL); }
 DEF_DISASMS(unknown) { }
 
+/******************************* Branches *************************************/
 
 static inline
 void ExecuteBranch(struct Emu &emu, word_t raw)
@@ -246,16 +247,22 @@ void ExecuteBranch(struct Emu &emu, word_t raw)
 	emu.genReg[Emu::REG_PC] += 2 * offs;
 }
 
-#define DEF_BRANCH_LIST				\
-	DEF_BRANCH(br,   true)			\
-	DEF_BRANCH(beq,  emu.psw.z)		\
-	DEF_BRANCH(bne, !emu.psw.z)		\
-	DEF_BRANCH(bmi,  emu.psw.n)		\
-	DEF_BRANCH(bpl, !emu.psw.n)		\
-	DEF_BRANCH(bcs,  emu.psw.c)		\
-	DEF_BRANCH(bcc, !emu.psw.c)		\
-	DEF_BRANCH(bvs,  emu.psw.v)		\
-	DEF_BRANCH(bvc, !emu.psw.v)
+#define DEF_BRANCH_LIST						\
+	DEF_BRANCH(br,   true)					\
+	DEF_BRANCH(beq,  emu.psw.z)				\
+	DEF_BRANCH(bne, !emu.psw.z)				\
+	DEF_BRANCH(bmi,  emu.psw.n)				\
+	DEF_BRANCH(bpl, !emu.psw.n)				\
+	DEF_BRANCH(bcs,  emu.psw.c)				\
+	DEF_BRANCH(bcc, !emu.psw.c)				\
+	DEF_BRANCH(bvs,  emu.psw.v)				\
+	DEF_BRANCH(bvc, !emu.psw.v)				\
+	DEF_BRANCH(blt,   emu.psw.n | emu.psw.v)		\
+	DEF_BRANCH(bge, !(emu.psw.n | emu.psw.v))		\
+	DEF_BRANCH(ble,   emu.psw.z | emu.psw.n | emu.psw.v)	\
+	DEF_BRANCH(bgt, !(emu.psw.z | emu.psw.n | emu.psw.v))	\
+	DEF_BRANCH(bhi, !(emu.psw.c | emu.psw.z))		\
+	DEF_BRANCH(blos,  emu.psw.c | emu.psw.z)
 
 #define DEF_BRANCH(name, pred)	\
 DEF_EXECUTE(name) { if (pred) ExecuteBranch(emu, opcode); }
@@ -266,6 +273,8 @@ DEF_BRANCH_LIST
 DEF_DISASMS(name) { os << " pc+" << (opcode & 0xff); }
 DEF_BRANCH_LIST
 #undef DEF_BRANCH
+
+/************************* Cond. code operators *******************************/
 
 union __attribute__((may_alias)) CCODEop {
 	struct {
@@ -302,6 +311,7 @@ DEF_DISASMS(ccode_op) {
 	}
 }
 
+/*************************** 2-op logical instrs ******************************/
 
 #define DEF_DLOG_LIST				\
 	DEF_DLOG(bis,  (src) | (dst), true)	\
@@ -339,7 +349,7 @@ DEF_DLOG_LIST
 #undef DEF_DLOG
 
 
-
+/********************************** Other *************************************/
 
 DEF_EXECUTE(dec) {
 	PREF_MR_W;
@@ -450,6 +460,66 @@ DEF_EXECUTE(halt) { emu.RaiseTrap(Emu::TRAP_ILL); }
 DEF_DISASMS(halt) { }
 
 
+#define DEF_UNIMPL(name)				\
+DEF_EXECUTE(name) { emu.RaiseTrap(Emu::TRAP_ILL); }	\
+DEF_DISASMS(name) { os << ": unimplemented"; }
+
+DEF_UNIMPL(sub)
+DEF_UNIMPL(cmp)
+
+DEF_UNIMPL(cmpb)
+
+DEF_UNIMPL(ash)
+DEF_UNIMPL(ashc)
+DEF_UNIMPL(mul)
+DEF_UNIMPL(div)
+DEF_UNIMPL(xor)
+DEF_UNIMPL(sob)
+
+DEF_UNIMPL(emt)
+DEF_UNIMPL(trap)
+
+DEF_UNIMPL(clr)
+DEF_UNIMPL(com)
+DEF_UNIMPL(inc)
+DEF_UNIMPL(neg)
+DEF_UNIMPL(adc)
+DEF_UNIMPL(sbc)
+DEF_UNIMPL(ror)
+DEF_UNIMPL(rol)
+DEF_UNIMPL(asr)
+DEF_UNIMPL(asl)
+
+DEF_UNIMPL(clrb)
+DEF_UNIMPL(comb)
+DEF_UNIMPL(incb)
+DEF_UNIMPL(negb)
+DEF_UNIMPL(adcb)
+DEF_UNIMPL(sbcb)
+DEF_UNIMPL(rorb)
+DEF_UNIMPL(rolb)
+DEF_UNIMPL(asrb)
+DEF_UNIMPL(aslb)
+
+DEF_UNIMPL(sxt)
+DEF_UNIMPL(swab)
+DEF_UNIMPL(jmp)
+DEF_UNIMPL(mtpi)
+DEF_UNIMPL(mtpid)
+DEF_UNIMPL(mark)
+DEF_UNIMPL(mfpi)
+DEF_UNIMPL(mfpd)
+
+DEF_UNIMPL(spl)
+
+DEF_UNIMPL(wait)
+DEF_UNIMPL(rti)
+DEF_UNIMPL(bpt)
+DEF_UNIMPL(iot)
+DEF_UNIMPL(reset)
+DEF_UNIMPL(rtt)
+
+/******************************** FPU ISA *************************************/
 
 DEF_EXECUTE(fpu_unknown) { emu.RaiseTrap(Emu::TRAP_ILL); }
 DEF_DISASMS(fpu_unknown) { }
@@ -461,6 +531,7 @@ DEF_EXECUTE(seti) { emu.fpu.fpusw.fl = 1; }
 DEF_DISASMS(seti) { }
 
 word_t constexpr FPU_ISA_MASK = 0170000;
+
 
 void Emu::ExecuteInstr(word_t opcode)
 {

@@ -47,7 +47,8 @@ struct DummyVT : public Emu::DevBase {
 		attrNew.c_cc[VMIN] = 1;
 		if ((rc = tcsetattr(fd, TCSANOW, &attrNew)) < 0)
 			goto out;
-		write(fd, clear_str, sizeof(clear_str));
+		if ((rc = write(fd, clear_str, sizeof(clear_str))) < 0)
+			goto out;
 		return 0;
 	out:
 		if (fd >= 0) close(fd);
@@ -144,7 +145,11 @@ int main(int argc, char **argv)
 	test.close();
 	emu.genReg[Emu::REG_PC] = load_addr;
 
-	while (!emu.trapPending)
+	size_t nCycles = 0;
+	while (!emu.trapPending) {
 		emu.DbgStep(std::cout);
+		if ((++nCycles) % (2ull << 20) == 0)
+			std::cout << nCycles / (2ull << 20) << "M cycles\n";
+	}
 	return 0;
 }
