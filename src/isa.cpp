@@ -240,8 +240,8 @@ struct InstrOp_mr {
 	void Disasm(std::ostream &os) {
 		os << " ";  a.Disasm(os);
 	}
-#define PREF_MR_W InstrOp_mr op(opcode); op.Fetch<word_t>(emu); word_t val;
-#define PREF_MR_B InstrOp_mr op(opcode); op.Fetch<byte_t>(emu); byte_t val;
+#define PREF_MR_W InstrOp_mr op(opcode); op.Fetch<word_t>(emu); word_t val; (void) val;
+#define PREF_MR_B InstrOp_mr op(opcode); op.Fetch<byte_t>(emu); byte_t val; (void) val;
 };
 
 struct InstrOp_r {
@@ -332,9 +332,9 @@ DEF_DISASMS(ccode_op) {
 	CCODEop op; op.raw = opcode;
 
 	if (op.val)
-		os << " se";
+		os << ": se";
 	else
-		os << " cl";
+		os << ": cl";
 
 	for (int i = 0; i < 4; ++i, op.raw >>= 1) {
 		if (op.raw & 1)
@@ -381,6 +381,21 @@ DEF_DLOG_LIST
 
 
 /********************************** Other *************************************/
+
+DEF_EXECUTE(clr) {
+	PREF_MR_W;
+	emu.psw.n = emu.psw.v = emu.psw.c = 0;
+	emu.psw.z = 1;
+	op.a.Store(emu, (word_t) 0);
+}
+DEF_DISASMS(clr) { InstrOp_mr(opcode).Disasm(os); }
+DEF_EXECUTE(clrb) {
+	PREF_MR_B;
+	emu.psw.n = emu.psw.v = emu.psw.c = 0;
+	emu.psw.z = 1;
+	op.a.Store(emu, (byte_t) 0);
+}
+DEF_DISASMS(clrb) { InstrOp_mr(opcode).Disasm(os); }
 
 DEF_EXECUTE(dec) {
 	PREF_MR_W;
@@ -501,6 +516,50 @@ DEF_EXECUTE(add) {
 }
 DEF_DISASMS(add) { InstrOp_mrmr(opcode).Disasm(os); }
 
+DEF_EXECUTE(ash) { /* why it's so complicated :( */
+	PREF_RMR; word_t aopv, regv, tmp, res; dword_t ext;
+	op.a.Load(emu, &aopv);
+	op.r.Load(emu, &regv);
+
+	bool rshift = 040 & aopv;
+	aopv &= 037;
+	aopv = (rshift) ? (32 - aopv) : aopv;
+
+	bool sign = getSign(regv);
+	ext = SignExtend(regv);
+
+	if (!rshift) {
+		if (aopv == 0) {
+			res = ext;
+			emu.psw.v = emu.psw.c = 0;
+		} else if (aopv < 16) {
+			res = ext << aopv;
+			tmp = ext >> (16 - aopv);
+			emu.psw.v = (tmp != (getSign(res) ? 0xffff : 0));
+			emu.psw.c = tmp & 1;
+		} else {
+			res = 0;
+			emu.psw.v = (ext != 0);
+			emu.psw.c = (ext << (aopv - 16)) & 1;
+		}
+	} else {
+		if (aopv == 32) {
+			res = -(s_word_t) sign;
+			emu.psw.v = 0;
+			emu.psw.c = sign;
+		} else {
+			res = (ext >> aopv) | ((-(s_word_t) sign) << (32 - aopv));
+			emu.psw.v = 0;
+			emu.psw.c = (ext >> (aopv - 1)) & 1;
+		}
+	}
+
+	op.r.Store(emu, res);
+	emu.psw.n = getSign(res);
+	emu.psw.z = getZ(res);
+}
+DEF_DISASMS(ash) { InstrOp_rmr(opcode).DisasmRSS(os); }
+
 DEF_EXECUTE(mul) {
 	PREF_RMR; word_t aopv, regv; s_dword_t val;
 	op.a.Load(emu, &aopv);
@@ -515,7 +574,7 @@ DEF_EXECUTE(mul) {
 	emu.psw.v = 0;
 	emu.psw.c = ((val > 077777) || (val < -0100000)); // PDP-11/45 handbook LIES here
 }
-DEF_DISASMS(mul) { InstrOp_mrmr(opcode).Disasm(os); }
+DEF_DISASMS(mul) { InstrOp_rmr(opcode).DisasmRSS(os); }
 
 DEF_EXECUTE(jsr) {
 	PREF_RMR;
@@ -555,7 +614,6 @@ DEF_DISASMS(name) { os << ": unimplemented"; }
 
 DEF_UNIMPL(sub)
 
-DEF_UNIMPL(ash)
 DEF_UNIMPL(ashc)
 DEF_UNIMPL(div)
 DEF_UNIMPL(xor)
@@ -564,7 +622,6 @@ DEF_UNIMPL(sob)
 DEF_UNIMPL(emt)
 DEF_UNIMPL(trap)
 
-DEF_UNIMPL(clr)
 DEF_UNIMPL(com)
 DEF_UNIMPL(neg)
 DEF_UNIMPL(adc)
@@ -574,7 +631,6 @@ DEF_UNIMPL(rol)
 DEF_UNIMPL(asr)
 DEF_UNIMPL(asl)
 
-DEF_UNIMPL(clrb)
 DEF_UNIMPL(comb)
 DEF_UNIMPL(negb)
 DEF_UNIMPL(adcb)

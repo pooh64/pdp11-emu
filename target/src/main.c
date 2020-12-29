@@ -4,6 +4,12 @@
 #define DL11_XBUF 0177566
 #define DL11_CSR_READY 0x80
 
+static inline unsigned __instr_ash(unsigned v, unsigned s)
+{
+	__asm volatile ("ash %2, %0" : "=r"(v) : "0"(v), "r"(s));
+	return v;
+}
+
 static inline void vt_putc(char c)
 {
 	unsigned volatile *xcsr = (typeof(xcsr)) DL11_XCSR;
@@ -36,12 +42,17 @@ static void vt_putshex(void *_buf, unsigned sz)
 {
 	unsigned char *buf = _buf;
 	while (sz--) {
-		vt_putc(hexdig_strtab[*buf >> 4]);
-		vt_putc(hexdig_strtab[*buf]);
-		buf++;
+		unsigned char c = *buf++;
+
+		/* GCC can't assemble this line properly */
+		//unsigned char h = (c >> 4) & 0xf;
+		unsigned char h = __instr_ash(c, -4) & 0xf;
+
+		unsigned char l = c & 0xf;
+		vt_putc(hexdig_strtab[h]);
+		vt_putc(hexdig_strtab[l]);
 	}
 }
-
 
 static int fact(int n)
 {
@@ -61,11 +72,13 @@ int main()
 	vt_puts("main(): HELLO!\n");
 	int f = fact(5);
 	vt_putshex(&f, sizeof(f));
-	vt_putc('\n');
+	vt_puts(" -> thats fact(5) = 0x0078 (swap endian)\n");
 
+	//return 0;
 	while (1) {
 		char c;
 		vt_getc(&c);
 		vt_putc(c);
 	}
+	return 0;
 }

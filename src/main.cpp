@@ -145,11 +145,15 @@ int main(int argc, char **argv)
 	test.close();
 	emu.genReg[Emu::REG_PC] = load_addr;
 
+#ifdef CONF_SHOW_CYCLES
 	size_t nCycles = 0;
+#endif
 	while (!emu.trapPending) {
 		emu.DbgStep(std::cout);
+#ifdef CONF_SHOW_CYCLES
 		if ((++nCycles) % (2ull << 20) == 0)
 			std::cout << nCycles / (2ull << 20) << "M cycles\n";
+#endif
 	}
 	return 0;
 }
