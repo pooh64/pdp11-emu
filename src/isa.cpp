@@ -456,6 +456,16 @@ DEF_EXECUTE(tstb) {
 }
 DEF_DISASMS(tstb) { InstrOp_mr(opcode).Disasm(os); }
 
+DEF_EXECUTE(jmp) {
+	PREF_MR_W;
+	if (op.a.isReg) {
+		emu.RaiseTrap(Emu::TRAP_ILL);
+		return;
+	}
+	emu.genReg[Emu::REG_PC] = op.a.effAddr.ptr;
+}
+DEF_DISASMS(jmp) { InstrOp_mr(opcode).Disasm(os); }
+
 DEF_EXECUTE(mov) {
 	PREF_MRMR_W;
 	op.s.Load(emu, &val);
@@ -578,8 +588,10 @@ DEF_DISASMS(mul) { InstrOp_rmr(opcode).DisasmRSS(os); }
 
 DEF_EXECUTE(jsr) {
 	PREF_RMR;
-	if (op.a.isReg)	/* jsr r, r illegal */
+	if (op.a.isReg)	{ /* jsr r, r illegal */ 
 		emu.RaiseTrap(Emu::TRAP_ILL);
+		return;
+	}
 	word_t tmp, regv;
 	auto &sp = emu.genReg[Emu::REG_SP];
 	auto &pc = emu.genReg[Emu::REG_PC];
@@ -642,7 +654,6 @@ DEF_UNIMPL(aslb)
 
 DEF_UNIMPL(sxt)
 DEF_UNIMPL(swab)
-DEF_UNIMPL(jmp)
 DEF_UNIMPL(mtpi)
 DEF_UNIMPL(mtpid)
 DEF_UNIMPL(mark)

@@ -19,6 +19,8 @@ static inline void vt_putc(char c)
 	*xbuf = c;
 }
 
+int vt_echo = 0;
+
 static inline void vt_getc(char *c)
 {
 	unsigned volatile *rcsr = (typeof(rcsr)) DL11_RCSR;
@@ -26,12 +28,36 @@ static inline void vt_getc(char *c)
 
 	while (!(*rcsr & DL11_CSR_READY));
 	*c = *rbuf;
+
+	if (vt_echo)
+		vt_putc(*c);
 }
 
 static void vt_puts(char *str)
 {
 	while (*str)
 		vt_putc(*str++);
+}
+
+static void vt_getsn(char *str, unsigned n)
+{
+	char c;
+	if (n-- == 0)
+		return;
+
+	while (n--) {
+		vt_getc(&c);
+		if (c == '\n') {
+			*str = 0;
+			return;
+		}
+		*str++ = c;
+	}
+	*str = 0;
+
+	do {
+		vt_getc(&c);
+	} while (c != '\n');
 }
 
 static char hexdig_strtab[] = {
@@ -69,10 +95,22 @@ void __main()
 
 int main()
 {
-	vt_puts("main(): HELLO!\n");
+	vt_puts("main(): Hello!\n\n");
+
+	vt_echo = 1;
+
+	char login[32];
+	vt_puts("login: ");
+	vt_getsn(login, sizeof(login));
+	vt_puts("\nHello, ");
+	vt_puts(login);
+	vt_puts("\n\n");
+
+	vt_echo = 0;
+
 	int f = fact(5);
 	vt_putshex(&f, sizeof(f));
-	vt_puts(" -> thats fact(5) = 0x0078 (swap endian)\n");
+	vt_puts(" -> thats fact(5) = 0x0078 (le)\n");
 
 	//return 0;
 	while (1) {
