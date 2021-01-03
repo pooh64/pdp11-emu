@@ -29,51 +29,87 @@ struct DummyVT : public Emu::DevBase {
 		info.dev = this;
 	}
 
-	int fd = -1;
-	struct termios attrOld;
-	int Open(char const *path)
+	int master_fd = -1;
+	int slave_fd = -1;
+
+	int SetupAttr()
 	{
 		int rc;
-		char const clear_str[] = "\033[H\033[J";
-		struct termios attrNew;
-		if ((rc = open(path, O_RDWR | O_NONBLOCK)) < 0)
+		struct termios attr;
+		if ((rc = tcgetattr(slave_fd, &attr)) < 0)
+			return rc;
+		attr.c_lflag &= ~(ICANON | ECHO);
+		attr.c_cc[VTIME] = 0;
+		attr.c_cc[VMIN] = 1;
+		if ((rc = tcsetattr(slave_fd, TCSANOW, &attr)) < 0)
+			return rc;
+
+		char wnd[64];
+		if ((rc = read(slave_fd, wnd, sizeof(wnd))) < 0)
+			return rc;
+		return 0;
+	}
+
+	int Create()
+	{
+		int rc;
+
+		if ((rc = posix_openpt(O_RDWR)) < 0)
 			goto out;
-		fd = rc;
-		if ((rc = tcgetattr(fd, &attrOld)) < 0)
+		master_fd = rc;
+
+		grantpt(master_fd);
+		unlockpt(master_fd);
+
+		char buf[256];
+		snprintf(buf, sizeof(buf), "-S%s/%d",
+				strrchr(ptsname(master_fd), '/') + 1,
+				master_fd);
+
+		if (!fork()) {
+			execlp("xterm", "xterm", buf, NULL);
+			exit(1);
+		}
+
+		if ((rc = open(ptsname(master_fd), O_RDWR)) < 0)
 			goto out;
-		attrNew = attrOld;
-		attrNew.c_lflag &= ~(ICANON | ECHO);
-		attrNew.c_cc[VTIME] = 0;
-		attrNew.c_cc[VMIN] = 1;
-		if ((rc = tcsetattr(fd, TCSANOW, &attrNew)) < 0)
+		slave_fd = rc;
+		if ((rc = SetupAttr()) < 0)
 			goto out;
-		if ((rc = write(fd, clear_str, sizeof(clear_str))) < 0)
-			goto out;
+
 		return 0;
 	out:
-		if (fd >= 0) close(fd);
+		Close();
 		return rc;
 	}
+
 	int Close()
 	{
-		int rc;
-		if ((rc = tcsetattr(fd, TCSANOW, &attrOld)) < 0) {
-			close(fd);
-			return rc;
+		int tmp, rc = 0;
+
+		if (slave_fd != -1) {
+			if ((tmp = close(slave_fd)) < 0)
+				rc = tmp;
+			slave_fd = -1;
 		}
-		return close(fd);
+		if (master_fd != -1) {
+			if ((tmp = close(master_fd)) < 0)
+				rc = tmp;
+			master_fd = -1;
+		}
+
+		return rc;
 	}
 	~DummyVT() { Close(); }
 	void putChar(char c)
 	{
-		ssize_t rc = write(fd, &c, sizeof(c));
+		ssize_t rc = write(slave_fd, &c, sizeof(c));
 		assert(sizeof(c) == rc);
 	}
 	bool charReady()
 	{
 		struct pollfd pf;
-		//pf.fd = fd;
-		pf.fd = STDIN_FILENO;
+		pf.fd = slave_fd;
 		pf.events = POLLIN;
 		int rc = poll(&pf, 1, 0);
 		assert(rc >= 0);
@@ -81,8 +117,7 @@ struct DummyVT : public Emu::DevBase {
 	}
 	void getChar(char *c)
 	{
-		//ssize_t rc = read(fd, c, sizeof(*c));
-		ssize_t rc = read(STDIN_FILENO, c, sizeof(*c));
+		ssize_t rc = read(slave_fd, c, sizeof(*c));
 		assert(sizeof(*c) == rc);
 	}
 	void Load(Emu &emu, word_t ptr, byte_t *buf, uint8_t sz)
@@ -126,13 +161,13 @@ int main(int argc, char **argv)
 {
 	word_t const load_addr = 01000;
 
-	if (argc != 3) {
-		std::cerr << argv[0] << " <bin> <tty>\n";
+	if (argc != 2) {
+		std::cerr << argv[0] << " <bin>\n";
 		return 1;
 	}
 	DummyVT vt;
-	if (vt.Open(argv[2]) < 0) {
-		std::cerr << "vt.Open failed\n";
+	if (vt.Create() < 0) {
+		std::cerr << "vt.Create failed\n";
 		return 1;
 	}
 	Emu::DevInfo vt_info;
@@ -141,7 +176,8 @@ int main(int argc, char **argv)
 	Emu emu;
 	emu.IOspaceRegister(vt_info);
 	std::ifstream test(argv[1], std::ios::binary);
-	test.read(reinterpret_cast<char*>(emu.coreMem.mem + load_addr), 16 * 1024);
+	test.read(reinterpret_cast<char*>(emu.coreMem.mem + load_addr),
+			16 * 1024);
 	test.close();
 	emu.genReg[Emu::REG_PC] = load_addr;
 

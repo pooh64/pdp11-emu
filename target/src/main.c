@@ -1,14 +1,23 @@
-#define DL11_RCSR 0177560
-#define DL11_RBUF 0177562
-#define DL11_XCSR 0177564
-#define DL11_XBUF 0177566
-#define DL11_CSR_READY 0x80
-
 static inline unsigned __instr_ash(unsigned v, unsigned s)
 {
 	__asm volatile ("ash %2, %0" : "=r"(v) : "0"(v), "r"(s));
 	return v;
 }
+
+int strcmp(char const *s1, char const *s2)
+{
+	while (*s1 && *s2) {
+		s1++;
+		s2++;
+	}
+	return *s1 - *s2;
+}
+
+#define DL11_RCSR 0177560
+#define DL11_RBUF 0177562
+#define DL11_XCSR 0177564
+#define DL11_XBUF 0177566
+#define DL11_CSR_READY 0x80
 
 static inline void vt_putc(char c)
 {
@@ -93,30 +102,57 @@ void __main()
 	return;
 }
 
+void login()
+{
+	static char const *LOGIN = "boss";
+	static char const *PASSWORD = "secret";
+
+	char buf_login[32], buf_passwd[32];
+
+retry:
+	vt_echo = 1;
+	vt_puts("login: ");
+	vt_getsn(buf_login, sizeof(buf_login));
+
+	vt_echo = 0;
+	vt_puts("password: ");
+	vt_getsn(buf_passwd, sizeof(buf_passwd));
+	vt_putc('\n');
+
+	if (strcmp(buf_login, LOGIN)) {
+		vt_puts("login incorrect\n\n");
+		goto retry;
+	}
+
+	if (strcmp(buf_passwd, PASSWORD)) {
+		vt_puts("password incorrect\n\n");
+		goto retry;
+	}
+
+	vt_puts("\nHello, ");
+	vt_puts(buf_login);
+	vt_puts("\n\n");
+}
+
 int main()
 {
 	vt_puts("main(): Hello!\n\n");
 
-	vt_echo = 1;
-
-	char login[32];
-	vt_puts("login: ");
-	vt_getsn(login, sizeof(login));
-	vt_puts("\nHello, ");
-	vt_puts(login);
-	vt_puts("\n\n");
-
-	vt_echo = 0;
+	login();
 
 	int f = fact(5);
 	vt_putshex(&f, sizeof(f));
 	vt_puts(" -> thats fact(5) = 0x0078 (le)\n");
 
 	//return 0;
+
+	vt_puts("echo char loop, e to exit\n");
 	while (1) {
 		char c;
 		vt_getc(&c);
 		vt_putc(c);
+		if (c == 'e')
+			break;
 	}
 	return 0;
 }

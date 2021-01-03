@@ -28,12 +28,12 @@ static inline bool getZ(dword_t val) { return !val; }
 
 static inline bool DetectSubOvf(byte_t src, byte_t dst, byte_t val)
 {
-	val = (src ^ dst) & (~dst ^ val);
+	val = (src ^ dst) & (~src ^ val);
 	return getSign(val);
 }
 static inline bool DetectSubOvf(word_t src, word_t dst, word_t val)
 {
-	val = (src ^ dst) & (~dst ^ val);
+	val = (src ^ dst) & (~src ^ val);
 	return getSign(val);
 }
 
@@ -456,6 +456,29 @@ DEF_EXECUTE(tstb) {
 }
 DEF_DISASMS(tstb) { InstrOp_mr(opcode).Disasm(os); }
 
+DEF_EXECUTE(com) {
+	PREF_MR_W;
+	op.a.Load(emu, &val);
+	val = ~val;
+	emu.psw.n = getSign(val);
+	emu.psw.z = getZ(val);
+	emu.psw.v = 0;
+	emu.psw.c = 1;
+	op.a.Store(emu, val);
+}
+DEF_DISASMS(com) { InstrOp_mr(opcode).Disasm(os); }
+DEF_EXECUTE(comb) {
+	PREF_MR_B;
+	op.a.Load(emu, &val);
+	val = ~val;
+	emu.psw.n = getSign(val);
+	emu.psw.z = getZ(val);
+	emu.psw.v = 0;
+	emu.psw.c = 1;
+	op.a.Store(emu, val);
+}
+DEF_DISASMS(comb) { InstrOp_mr(opcode).Disasm(os); }
+
 DEF_EXECUTE(jmp) {
 	PREF_MR_W;
 	if (op.a.isReg) {
@@ -525,6 +548,19 @@ DEF_EXECUTE(add) {
 	op.d.Store(emu, val);
 }
 DEF_DISASMS(add) { InstrOp_mrmr(opcode).Disasm(os); }
+
+DEF_EXECUTE(sub) {
+	PREF_MRMR_W;
+	op.s.Load(emu, &src);
+	op.d.Load(emu, &dst);
+	val = dst - src;
+	emu.psw.n = getSign(val);
+	emu.psw.z = getZ(val);
+	emu.psw.v = DetectSubOvf(src, dst, val);
+	emu.psw.c = (dst < src);
+	op.d.Store(emu, val);
+}
+DEF_DISASMS(sub) { InstrOp_mrmr(opcode).Disasm(os); }
 
 DEF_EXECUTE(ash) { /* why it's so complicated :( */
 	PREF_RMR; word_t aopv, regv, tmp, res; dword_t ext;
@@ -624,7 +660,6 @@ DEF_DISASMS(halt) { }
 DEF_EXECUTE(name) { emu.RaiseTrap(Emu::TRAP_ILL); }	\
 DEF_DISASMS(name) { os << ": unimplemented"; }
 
-DEF_UNIMPL(sub)
 
 DEF_UNIMPL(ashc)
 DEF_UNIMPL(div)
@@ -634,7 +669,6 @@ DEF_UNIMPL(sob)
 DEF_UNIMPL(emt)
 DEF_UNIMPL(trap)
 
-DEF_UNIMPL(com)
 DEF_UNIMPL(neg)
 DEF_UNIMPL(adc)
 DEF_UNIMPL(sbc)
@@ -643,7 +677,6 @@ DEF_UNIMPL(rol)
 DEF_UNIMPL(asr)
 DEF_UNIMPL(asl)
 
-DEF_UNIMPL(comb)
 DEF_UNIMPL(negb)
 DEF_UNIMPL(adcb)
 DEF_UNIMPL(sbcb)
