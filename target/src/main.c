@@ -48,6 +48,26 @@ static void vt_puts(char *str)
 		vt_putc(*str++);
 }
 
+static char hexdig_strtab[] = {
+	'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+	'a', 'b', 'c', 'd', 'e', 'f' };
+
+static void vt_putshex(void *_buf, unsigned sz)
+{
+	unsigned char *buf = _buf;
+	while (sz--) {
+		unsigned char c = *buf++;
+
+		/* GCC can't assemble this line properly */
+		//unsigned char h = (c >> 4) & 0xf;
+		unsigned char h = __instr_ash(c, -4) & 0xf;
+
+		unsigned char l = c & 0xf;
+		vt_putc(hexdig_strtab[h]);
+		vt_putc(hexdig_strtab[l]);
+	}
+}
+
 static void vt_getsn(char *str, unsigned n)
 {
 	char c;
@@ -67,26 +87,6 @@ static void vt_getsn(char *str, unsigned n)
 	do {
 		vt_getc(&c);
 	} while (c != '\n');
-}
-
-static char hexdig_strtab[] = {
-	'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-	'a', 'b', 'c', 'd', 'e', 'f' };
-
-static void vt_putshex(void *_buf, unsigned sz)
-{
-	unsigned char *buf = _buf;
-	while (sz--) {
-		unsigned char c = *buf++;
-
-		/* GCC can't assemble this line properly */
-		//unsigned char h = (c >> 4) & 0xf;
-		unsigned char h = __instr_ash(c, -4) & 0xf;
-
-		unsigned char l = c & 0xf;
-		vt_putc(hexdig_strtab[h]);
-		vt_putc(hexdig_strtab[l]);
-	}
 }
 
 static int fact(int n)

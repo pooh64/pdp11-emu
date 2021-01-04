@@ -13,7 +13,7 @@ CC = $(CCPATH)/pdp11-aout-gcc
 OBJCOPY = $(CCPATH)/pdp11-aout-objcopy
 OBJDUMP = $(CCPATH)/pdp11-aout-objdump
 CFLAGS += --std=gnu11 -MMD -Wall -Wpointer-arith -I$(SRCDIR) -g
-CFLAGS += -m45 -nostdlib -fpic -fpie -O1
+CFLAGS += -m45 -nostdlib -fpic -fpie -O0
 LDFLAGS += -nostdlib -Ttext 0x200 -m45 -N -g -fpic -fpie
 dir_guard = @mkdir -p $(@D)
 

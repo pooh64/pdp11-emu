@@ -67,7 +67,8 @@ struct DummyVT : public Emu::DevBase {
 				master_fd);
 
 		if (!fork()) {
-			execlp("xterm", "xterm", buf, NULL);
+			execlp("xterm", "xterm", buf, "-fa", "'Monospace'",
+				       "-fs", "10", NULL);
 			exit(1);
 		}
 
