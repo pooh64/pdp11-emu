@@ -13,10 +13,7 @@ using   dword_t = uint32_t;
 using s_dword_t =  int32_t;
 
 using trcache_fn_t = void (*)();
-struct trcache_entry {
-	trcache_fn_t exec;
-	trcache_entry() {};
-};
+struct trcache_entry;
 struct Emu {
 	enum GenRegId : uint8_t {
 		REG_R0	= 00,

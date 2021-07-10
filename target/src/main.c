@@ -153,11 +153,14 @@ void heavycompute()
 	(void) accum;
 }
 
-int main()
-{
+void heavycompute_loop() {
 	for (int i = 0; i < 1024; ++i)
 		heavycompute();
-	return 0;
+}
+
+int main()
+{
+	heavycompute_loop(); return 0;
 
 	vt_puts("main(): Hello!\n\n");
 	login();

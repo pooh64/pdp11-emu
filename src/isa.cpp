@@ -2,8 +2,48 @@
 #include "isa.h"
 #include "common.h"
 
-#define DEF_EXECUTE(instr) static inline void		\
-	Execute_##instr(word_t opcode, struct Emu &emu)
+#include "trcache.h"
+
+#define TRWRAPPER_I(instr) trwrapper_##instr
+
+#ifdef CONF_ENABLE_TRCACHE
+#ifdef CONF_ENABLE_TRCACHE_RUN_INLINE
+#define DEF_TRWRAPPER(instr)							\
+void trwrapper_##instr () {							\
+	Emu &emu = *Emu::trcache.emu;						\
+	word_t opcode;								\
+	emu.FetchOpcode(opcode);						\
+	auto oldpc = emu.genReg[Emu::REG_PC];					\
+	EXECUTE_I(instr, opcode, emu);						\
+	if (emu.trapPending) {							\
+		Emu::trcache.trapping_opcode = opcode;				\
+		longjmp(Emu::trcache.restore_buf, 1);				\
+	}									\
+	auto newpc = emu.genReg[Emu::REG_PC];					\
+	size_t offs = (newpc - oldpc) / sizeof(word_t) * sizeof(trcache_entry);	\
+	frame_retaddr_shift(offs);						\
+}						
+#else
+#define DEF_TRWRAPPER(instr)				\
+void trwrapper_##instr () {				\
+	Emu &emu = *Emu::trcache.emu;			\
+	word_t opcode;					\
+	emu.FetchOpcode(opcode);			\
+	EXECUTE_I(instr, opcode, emu);			\
+	if (emu.trapPending) {				\
+		Emu::trcache.trapping_opcode = opcode;	\
+		longjmp(Emu::trcache.restore_buf, 1);	\
+	}						\
+}
+#endif
+#define DEF_EXECUTE(instr)						\
+static inline void Execute_##instr(word_t opcode, struct Emu &emu);	\
+DEF_TRWRAPPER(instr)							\
+static inline void Execute_##instr(word_t opcode, struct Emu &emu)
+#else
+#define DEF_EXECUTE(instr)						\
+static inline void Execute_##instr(word_t opcode, struct Emu &emu)
+#endif
 
 #define DEF_DISASMS(instr) static inline void		\
 	Disasms_##instr(word_t opcode, struct Emu &emu, std::ostream &os)
@@ -176,7 +216,7 @@ struct InstrOp_r {
 };
 
 template <typename T>
-void AddrOp::Fetch(Emu &emu)	// Execute unit to get effAddr, may abort
+inline void AddrOp::Fetch(Emu &emu)	// Execute unit to get effAddr, may abort
 {
 	word_t &pc = emu.genReg[Emu::REG_PC];
 	word_t &reg = emu.genReg[op_reg];
@@ -743,23 +783,7 @@ void Emu::DisasmInstr(word_t opcode, std::ostream &os)
 	}
 }
 
-
-#define TRWRAPPER_I(instr) ({					\
-	trcache_fn_t fn = []() {				\
-		Emu &emu = *Emu::trcache.emu;			\
-		/*auto &emupc = emu.genReg[Emu::REG_PC];*/	\
-		word_t opcode;					\
-		emu.FetchOpcode(opcode);			\
-		EXECUTE_I(instr, opcode, emu);			\
-		if (emu.trapPending) {				\
-			Emu::trcache.trapping_opcode = opcode;	\
-			longjmp(Emu::trcache.restore_buf, 1);	\
-		}						\
-		/* future optimization: update native retaddr if instr changed pc */	\
-	};							\
-	fn;							\
-})
-
+#ifdef CONF_ENABLE_TRCACHE
 trcache_fn_t Emu::GetTrCacheExecutor(word_t opcode)
 {
 	if ((opcode & FPU_ISA_MASK) == FPU_ISA_MASK) {
@@ -773,3 +797,4 @@ trcache_fn_t Emu::GetTrCacheExecutor(word_t opcode)
 #undef I_OP
 	}
 }
+#endif
