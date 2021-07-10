@@ -1,6 +1,6 @@
-#include <emu.h>
-#include <isa.h>
-#include <common.h>
+#include "emu.h"
+#include "isa.h"
+#include "common.h"
 
 #define DEF_EXECUTE(instr) static inline void		\
 	Execute_##instr(word_t opcode, struct Emu &emu)
@@ -69,96 +69,6 @@ struct AddrOp {
 	template <typename T>
 	void Store(Emu &emu, T val);
 };
-
-template <typename T>
-void AddrOp::Fetch(Emu &emu)	// Execute unit to get effAddr, may abort
-{
-	word_t &pc = emu.genReg[Emu::REG_PC];
-	word_t &reg = emu.genReg[op_reg];
-	word_t imm;
-
-	isReg = false;
-	switch (op_mode) {
-	case 0b000: // R
-		isReg = true;
-		effAddr.reg = op_reg;
-		break;
-	case 0b001: // (R)
-		effAddr.ptr = reg;
-		break;
-	case 0b010: // (R)+
-		effAddr.ptr = reg;
-		reg += (op_reg < Emu::REG_SP) ? sizeof(T) : sizeof(word_t);
-		// sp trap
-		break;
-	case 0b011: // *(R)+
-		emu.Load<word_t>(reg, &effAddr.ptr);
-		reg += sizeof(word_t);
-		// sp trap
-		break;
-	case 0b100: // -(R)
-		reg -= (op_reg < Emu::REG_SP) ? sizeof(T) : sizeof(word_t);
-		// sp trap
-		effAddr.ptr = reg;
-		break;
-	case 0b101: // *-(R)
-		reg -= sizeof(word_t);
-		// sp trap
-		emu.Load<word_t>(reg, &effAddr.ptr);
-		break;
-	case 0b110: // imm(R)
-		emu.Load<word_t>(pc, &imm);
-		pc += sizeof(word_t);
-		effAddr.ptr = reg + imm;
-		break;
-	case 0b111: // *imm(R)
-		emu.Load<word_t>(pc, &imm);
-		pc += sizeof(word_t);
-		emu.Load<word_t>(reg + imm, &effAddr.ptr);
-		break;
-	}
-}
-
-template <typename T>
-inline void AddrOp::Load(Emu &emu, T *val) // may abort
-{
-	if (isReg)
-		*val = emu.genReg[effAddr.reg];
-	else
-		emu.Load<T>(effAddr.ptr, val);
-}
-
-template <typename T>
-inline void AddrOp::Store(Emu &emu, T val) // may abort
-{
-	if (isReg) {
-		auto ptr = &emu.genReg[effAddr.reg];
-		*reinterpret_cast<T*>(ptr) = val;
-	} else
-		emu.Store<T>(effAddr.ptr, val);
-}
-
-void AddrOp::Disasm(std::ostream &os)
-{
-	switch (op_mode) {
-		case 0b000: // R
-			os << putf("r%d", op_reg); break;
-		case 0b001: // (R)
-			os << putf("(r%d)", op_reg); break;
-		case 0b010: // (R)+
-			os << putf("(r%d)+", op_reg); break;
-		case 0b011: // *(R)+
-			os << putf("*(r%d)+", op_reg); break;
-		case 0b100: // -(R)
-			os << putf("-(r%d)", op_reg); break;
-		case 0b101: // *-(R)
-			os << putf("*-(r%d)", op_reg); break;
-		case 0b110: // imm(R)
-			os << putf("imm(r%d)", op_reg); break;
-		case 0b111: // *imm(R)
-			os << putf("*imm(r%d)", op_reg); break;
-	}
-}
 
 struct InstrOp_mrmr {
 	union Format {
@@ -265,6 +175,95 @@ struct InstrOp_r {
 #define PREF_R InstrOp_r op(opcode); op.Fetch(emu);
 };
 
+template <typename T>
+void AddrOp::Fetch(Emu &emu)	// Execute unit to get effAddr, may abort
+{
+	word_t &pc = emu.genReg[Emu::REG_PC];
+	word_t &reg = emu.genReg[op_reg];
+	word_t imm;
+
+	isReg = false;
+	switch (op_mode) {
+	case 0b000: // R
+		isReg = true;
+		effAddr.reg = op_reg;
+		break;
+	case 0b001: // (R)
+		effAddr.ptr = reg;
+		break;
+	case 0b010: // (R)+
+		effAddr.ptr = reg;
+		reg += (op_reg < Emu::REG_SP) ? sizeof(T) : sizeof(word_t);
+		// sp trap
+		break;
+	case 0b011: // *(R)+
+		emu.Load<word_t>(reg, &effAddr.ptr);
+		reg += sizeof(word_t);
+		// sp trap
+		break;
+	case 0b100: // -(R)
+		reg -= (op_reg < Emu::REG_SP) ? sizeof(T) : sizeof(word_t);
+		// sp trap
+		effAddr.ptr = reg;
+		break;
+	case 0b101: // *-(R)
+		reg -= sizeof(word_t);
+		// sp trap
+		emu.Load<word_t>(reg, &effAddr.ptr);
+		break;
+	case 0b110: // imm(R)
+		emu.Load<word_t>(pc, &imm);
+		pc += sizeof(word_t);
+		effAddr.ptr = reg + imm;
+		break;
+	case 0b111: // *imm(R)
+		emu.Load<word_t>(pc, &imm);
+		pc += sizeof(word_t);
+		emu.Load<word_t>(reg + imm, &effAddr.ptr);
+		break;
+	}
+}
+
+template <typename T>
+inline void AddrOp::Load(Emu &emu, T *val) // may abort
+{
+	if (isReg)
+		*val = emu.genReg[effAddr.reg];
+	else
+		emu.Load<T>(effAddr.ptr, val);
+}
+
+template <typename T>
+inline void AddrOp::Store(Emu &emu, T val) // may abort
+{
+	if (isReg) {
+		auto ptr = &emu.genReg[effAddr.reg];
+		*reinterpret_cast<T*>(ptr) = val;
+	} else
+		emu.Store<T>(effAddr.ptr, val);
+}
+
+void AddrOp::Disasm(std::ostream &os)
+{
+	switch (op_mode) {
+		case 0b000: // R
+			os << putf("r%d", op_reg); break;
+		case 0b001: // (R)
+			os << putf("(r%d)", op_reg); break;
+		case 0b010: // (R)+
+			os << putf("(r%d)+", op_reg); break;
+		case 0b011: // *(R)+
+			os << putf("*(r%d)+", op_reg); break;
+		case 0b100: // -(R)
+			os << putf("-(r%d)", op_reg); break;
+		case 0b101: // *-(R)
+			os << putf("*-(r%d)", op_reg); break;
+		case 0b110: // imm(R)
+			os << putf("imm(r%d)", op_reg); break;
+		case 0b111: // *imm(R)
+			os << putf("*imm(r%d)", op_reg); break;
+	}
+}
 
 DEF_EXECUTE(unknown) { emu.RaiseTrap(Emu::TRAP_ILL); }
 DEF_DISASMS(unknown) { }
@@ -721,11 +720,11 @@ void Emu::ExecuteInstr(word_t opcode)
 	if ((opcode & FPU_ISA_MASK) == FPU_ISA_MASK) {
 		word_t masked = opcode & ~FPU_ISA_MASK;
 #define I_OP(instr) EXECUTE_I(instr, opcode, *this); return;
-#include <fpu_isa_switch.h>
+#include "fpu_isa_switch.h"
 #undef I_OP
 	} else {
 #define I_OP(instr) EXECUTE_I(instr, opcode, *this); return;
-#include <isa_switch.h>
+#include "isa_switch.h"
 #undef I_OP
 	}
 }
@@ -735,11 +734,42 @@ void Emu::DisasmInstr(word_t opcode, std::ostream &os)
 	if ((opcode & FPU_ISA_MASK) == FPU_ISA_MASK) {
 		word_t masked = opcode & ~FPU_ISA_MASK;
 #define I_OP(instr) DISASMS_I(instr, opcode, *this, os); return;
-#include <fpu_isa_switch.h>
+#include "fpu_isa_switch.h"
 #undef I_OP
 	} else {
 #define I_OP(instr) DISASMS_I(instr, opcode, *this, os); return;
-#include <isa_switch.h>
+#include "isa_switch.h"
+#undef I_OP
+	}
+}
+
+
+#define TRWRAPPER_I(instr) ({					\
+	trcache_fn_t fn = []() {				\
+		Emu &emu = *Emu::trcache.emu;			\
+		/*auto &emupc = emu.genReg[Emu::REG_PC];*/	\
+		word_t opcode;					\
+		emu.FetchOpcode(opcode);			\
+		EXECUTE_I(instr, opcode, emu);			\
+		if (emu.trapPending) {				\
+			Emu::trcache.trapping_opcode = opcode;	\
+			longjmp(Emu::trcache.restore_buf, 1);	\
+		}						\
+		/* future optimization: update native retaddr if instr changed pc */	\
+	};							\
+	fn;							\
+})
+
+trcache_fn_t Emu::GetTrCacheExecutor(word_t opcode)
+{
+	if ((opcode & FPU_ISA_MASK) == FPU_ISA_MASK) {
+		word_t masked = opcode & ~FPU_ISA_MASK;
+#define I_OP(instr) return TRWRAPPER_I(instr);
+#include "fpu_isa_switch.h"
+#undef I_OP
+	} else {
+#define I_OP(instr) return TRWRAPPER_I(instr);
+#include "isa_switch.h"
 #undef I_OP
 	}
 }

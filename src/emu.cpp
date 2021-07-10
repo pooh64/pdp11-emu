@@ -1,8 +1,8 @@
-#include <emu.h>
-#include <isa.h>
+#include "emu.h"
+#include "isa.h"
 #include <cstdint>
 #include <cinttypes>
-#include <common.h>
+#include "common.h"
 
 void Emu::DumpReg(std::ostream &os)
 {
@@ -65,7 +65,7 @@ void Emu::DumpTrap(Emu::TrapId t, std::ostream &os)
 {
 	static const char *strTab[] = {
 #define DEF_TRAP(name, vec, str) [Emu::TRAP_##name] = str,
-#include <trap_def.h>
+#include "trap_def.h"
 #undef DEF_TRAP
 	};
 	os << strTab[t];

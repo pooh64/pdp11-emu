@@ -1,4 +1,4 @@
-static inline unsigned __instr_ash(unsigned v, unsigned s)
+static inline unsigned __instr_ash(unsigned v, unsigned s)	/* GCC can't handle rshift */
 {
 	__asm volatile ("ash %2, %0" : "=r"(v) : "0"(v), "r"(s));
 	return v;
@@ -134,10 +134,32 @@ retry:
 	vt_puts("\n\n");
 }
 
+typedef unsigned char u8;
+typedef unsigned int u16;
+
+void heavycompute()
+{
+	u8 *beg = (void*) 0x1024;
+	u8 *end = (void*) 0x2048;
+
+	u16 accum = 0xdead;
+
+	for (u8 *ptr = beg; ptr < end; ++ptr) {
+		accum = __instr_ash(accum, 5) + accum + *ptr;
+		accum = __instr_ash(accum, 16 - 7) | __instr_ash(accum, 7);
+		accum -= *ptr;
+	}
+
+	(void) accum;
+}
+
 int main()
 {
-	vt_puts("main(): Hello!\n\n");
+	for (int i = 0; i < 1024; ++i)
+		heavycompute();
+	return 0;
 
+	vt_puts("main(): Hello!\n\n");
 	login();
 
 	int f = fact(5);

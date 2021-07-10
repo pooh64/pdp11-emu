@@ -2,8 +2,9 @@
 #include <iostream>
 #include <cassert>
 #include <vector>
+#include <csetjmp>
 
-#include <configure.h>
+#include "configure.h"
 
 using    byte_t = uint8_t;
 using    word_t = uint16_t;
@@ -11,6 +12,11 @@ using  s_word_t =  int16_t;
 using   dword_t = uint32_t;
 using s_dword_t =  int32_t;
 
+using trcache_fn_t = void (*)();
+struct trcache_entry {
+	trcache_fn_t exec;
+	trcache_entry() {};
+};
 struct Emu {
 	enum GenRegId : uint8_t {
 		REG_R0	= 00,
@@ -88,14 +94,14 @@ struct Emu {
 
 	enum TrapId : uint8_t {
 #define DEF_TRAP(name, vec, str) TRAP_##name,
-#include <trap_def.h>
+#include "trap_def.h"
 #undef DEF_TRAP
 		MAX_TRAP
 	};
 
 	enum TrapVec : uint8_t {
 #define DEF_TRAP(name, vec, str) TRAP_VEC_##name = vec,
-#include <trap_def.h>
+#include "trap_def.h"
 #undef DEF_TRAP
 	};
 
@@ -111,6 +117,16 @@ struct Emu {
 		CoreMemory() { mem = new byte_t[sz]; }
 		~CoreMemory() { delete[] mem; }
 	};
+	static struct TrCache {
+		static constexpr size_t sz = (IO_PAGE_BASE / sizeof(word_t));
+		Emu *emu;
+		trcache_entry *cache;
+		jmp_buf restore_buf;
+		word_t trapping_opcode;
+		TrCache();
+		~TrCache();
+	} trcache; // static!!!
+	void TrCacheAcquire();
 
 	struct DevBase {
 		virtual void Load(Emu &emu, word_t ptr, byte_t *buf, uint8_t sz)=0;
@@ -151,6 +167,12 @@ struct Emu {
 	void DumpReg(std::ostream &os);
 
 	void DbgStep(std::ostream &os);
+
+	static trcache_fn_t GetTrCacheExecutor(word_t opcode);
+
+	static void InitTrCachePc(word_t opcode);
+	static void TrCacheStep(std::ostream &os);
+	static void TrCacheRun(std::ostream &os);
 
 	Emu() { }
 

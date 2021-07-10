@@ -181,16 +181,27 @@ int main(int argc, char **argv)
 			16 * 1024);
 	test.close();
 	emu.genReg[Emu::REG_PC] = load_addr;
+	emu.TrCacheAcquire();
 
 #ifdef CONF_SHOW_CYCLES
 	size_t nCycles = 0;
 #endif
+#ifdef CONF_ENABLE_TRCACHE_RUN
+	Emu::TrCacheRun(std::cout);
+#else
 	while (!emu.trapPending) {
+#ifdef CONF_ENABLE_TRCACHE
+		Emu::TrCacheStep(std::cout);
+#else
 		emu.DbgStep(std::cout);
+#endif
 #ifdef CONF_SHOW_CYCLES
 		if ((++nCycles) % (2ull << 20) == 0)
 			std::cout << nCycles / (2ull << 20) << "M cycles\n";
 #endif
+		//char a;
+		//std::cin >> a;
 	}
+#endif
 	return 0;
 }
